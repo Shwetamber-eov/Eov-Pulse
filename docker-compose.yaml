@@ -1,0 +1,22 @@
+services:
+  chromadb:
+    image: chromadb/chroma:${CHROMA_VERSION}
+    container_name: chroma-server
+    volumes:
+      - ${DATA_PATH}:${PERSIST_DIRECTORY} # Persists your data on your hard drive
+    ports:
+      - "8001:8000" # Maps local port 8001 to Chroma's 8000
+    environment:
+      - PERSIST_DIRECTORY=${PERSIST_DIRECTORY}
+  rag-api:
+    build: .
+    container_name: rag-researcher
+    ports:
+      - "8080:8000" # Your API will be at http://localhost:8080
+    environment:
+      - CHROMA_HOST=chromadb
+      - CHROMA_PORT=8000
+      - OLLAMA_URL=http://host.docker.internal:11434 # Connects to Ollama on your host machine
+    depends_on:
+      chromadb:
+        condition: service_started # Only starts after chromadb container is up

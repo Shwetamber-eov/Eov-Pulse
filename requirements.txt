@@ -1,9 +1,14 @@
-unstructured
-tiktoken
-pinecone-client
-pypdf
-openai
-langchain
-pandas
-numpy
-python-dotenv
+uvicorn
+pydantic
+langchain-chroma
+chromadb
+sentence-transformers
+requests
+langchain-ollama      # Connects LangChain to your local Ollama
+langchain-chroma      # The local vector database engine
+langchain             # The core framework logic
+pypdf                 # To read your PDF files
+python-dotenv         # To manage environment variables (if needed)
+ollama                # Python client to manage model pulls/downloads
+fastapi               # To create the API server
+langchain_community
