@@ -1,13 +1,37 @@
+version: '3.8'
 services:
   chromadb:
     image: chromadb/chroma:${CHROMA_VERSION}
     container_name: chroma-server
     volumes:
-      - ${DATA_PATH}:${PERSIST_DIRECTORY} # Persists your data on your hard drive
+      # 1. Persist your data
+      - ./chroma_data:/data 
+      # 2. Link your separate config file into the container
+      - ./config.yaml:/config.yaml 
     ports:
       - "8001:8000" # Maps local port 8001 to Chroma's 8000
     environment:
-      - PERSIST_DIRECTORY=${PERSIST_DIRECTORY}
+      - CHROMA_CONFIG_PATH=/config.yaml
+    restart: always
+    networks:
+      - clinical-net
+  
+  ingestor:
+    build: .
+    container_name: rag-ingestor
+    volumes:
+      - ./app/data:/app/data
+      - ./chroma_data:/app/chroma_data # Ensure ingestor can access Chroma's data directory
+    command: ["python", "ingest.py"] # Run your data ingestion script
+    environment:
+      - CHROMA_HOST=chromadb
+      - CHROMA_PORT=8000
+      - OLLAMA_URL=http://host.docker.internal:11434 # Connects to Ollama on your host machine
+    depends_on:
+      chromadb:
+        condition: service_started # Only starts after chromadb container is up
+    networks:
+      - clinical-net
   rag-api:
     build: .
     container_name: rag-researcher
@@ -18,5 +42,25 @@ services:
       - CHROMA_PORT=8000
       - OLLAMA_URL=http://host.docker.internal:11434 # Connects to Ollama on your host machine
     depends_on:
-      chromadb:
-        condition: service_started # Only starts after chromadb container is up
+      - ingestor
+    command: uvicorn main:app --host 0.0.0.0 --port 8000
+    networks:
+      - clinical-net
+  clinical-ui:
+    build: .
+    container_name: clinical-assistant-ui
+    ports:
+      - "8501:8501"
+    environment:
+      - CHROMA_HOST=chromadb
+      - CHROMA_PORT=8000
+      - OLLAMA_URL=Http://host.docker.internal:11434
+    depends_on:
+      - rag-api
+    command: streamlit run app_ui.py --server.port=8501 --server.address=0.0.0.0
+    networks:
+      - clinical-net
+
+networks:
+    clinical-net:
+      driver: bridge
