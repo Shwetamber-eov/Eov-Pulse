@@ -2,9 +2,9 @@ import streamlit as st
 from pypdf import PdfReader
 from graph import clinical_agent  # Importing your working graph
 
-st.set_page_config(page_title="Clinical Assistant", layout="wide")
+st.set_page_config(page_title="EOV Pulse", layout="wide")
 
-st.title("🩺 Clinical Guidelines & Report Assistant")
+st.title("🩺 Clinical Decision & Support System")
 st.markdown("---")
 
 # 1. Sidebar for status
