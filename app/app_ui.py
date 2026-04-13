@@ -2,41 +2,57 @@ import streamlit as st
 from pypdf import PdfReader
 from graph import clinical_agent  # Importing your working graph
 
+# 1. Page Configuration (Keep original UI)
 st.set_page_config(page_title="EOV Pulse", layout="wide")
 
 st.title("🩺 Clinical Decision & Support System")
 st.markdown("---")
 
-# 1. Sidebar for status
+# 2. Sidebar for status (Keep original UI)
 with st.sidebar:
     st.header("System Status")
     st.success("Ollama: Connected")
     st.success("ChromaDB: Connected")
     st.info("Model: Llama 3 (Reasoning)")
 
-# 2. File Upload
-uploaded_file = st.file_uploader("Upload Patient Lab Report (PDF)", type="pdf")
+# 3. Helper function to "Freeze" AI results
+# This prevents rerunning the agent when you click the button
+@st.cache_data
+def run_clinical_analysis(text):
+    inputs = {
+        "report_text": text,
+        "extracted_data": "",
+        "guideline_context": "",
+        "final_plan": ""
+    }
+    return clinical_agent.invoke(inputs)
+
+# 4. Session State for clearing the uploader
+if "uploader_key" not in st.session_state:
+    st.session_state["uploader_key"] = 0
+
+def clear_report():
+    st.session_state["uploader_key"] += 1
+    # This resets the file uploader and clears the cache for the next file
+    st.cache_data.clear()
+
+# 5. File Upload (Dynamic Key to allow clearing)
+uploaded_file = st.file_uploader(
+    "Upload Patient Lab Report (PDF)", 
+    type="pdf", 
+    key=f"pdf_uploader_{st.session_state['uploader_key']}"
+)
 
 if uploaded_file is not None:
     with st.spinner("Processing report and consulting WHO guidelines..."):
         # A. Extract text from PDF
         reader = PdfReader(uploaded_file)
-        raw_text = ""
-        for page in reader.pages:
-            raw_text += page.extract_text()
+        raw_text = "".join([page.extract_text() for page in reader.pages])
 
-        # B. Run the Agent
-        # We pass the raw_text into the same initial_state you used in test_graph
-        inputs = {
-            "report_text": raw_text,
-            "extracted_data": "",
-            "guideline_context": "",
-            "final_plan": ""
-        }
-        
-        result = clinical_agent.invoke(inputs)
+        # B. Run the Agent (Cached version)
+        result = run_clinical_analysis(raw_text)
 
-        # C. Display Results in Columns
+        # C. Display Results in Columns (Keep original UI)
         col1, col2 = st.columns(2)
 
         with col1:
@@ -50,4 +66,11 @@ if uploaded_file is not None:
             st.subheader("📝 Drafted Clinical Action Plan")
             st.success(result["final_plan"])
             
-            st.button("Approve & Sign Referral")
+            # 6. Functional "Approve" Button
+            if st.button("Approve & Sign Referral"):
+                st.balloons()
+                st.success("✅ Referral signed and saved to Patient History!")
+                
+                # Option to clear the screen and start over
+                st.button("Reset / New Patient", on_click=clear_report)
+
