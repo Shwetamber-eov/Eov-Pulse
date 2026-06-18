@@ -26,7 +26,7 @@ def run_clinical_analysis(text):
         "guideline_context": "",
         "final_plan": ""
     }
-    print("inputs prepared for agent:", inputs)
+    print("inputs prepared for agent:")
     return clinical_agent.invoke(inputs)
 
 # 4. Session State for clearing the uploader
@@ -47,30 +47,32 @@ uploaded_file = st.file_uploader(
 
 if uploaded_file is not None:
     with st.spinner("Processing report and consulting WHO guidelines..."):
-        st.write("✅ PDF uploaded successfully!")
+        print("✅ PDF uploaded successfully!")
         # A. Extract text from PDF
         reader = PdfReader(uploaded_file)
-        st.write("Extracting text from PDF...")
+        print("Extracting text from PDF...")
         raw_text = "".join([page.extract_text() for page in reader.pages])
-        st.write(raw_text[:500] + "...")  # Show a preview of the extracted text
+        print(raw_text[:50] + "...")  # Show a preview of the extracted text
         # B. Run the Agent (Cached version)
-        st.write("Invoking the clinical analysis agent...")
+        print("Invoking the clinical analysis agent...")
         result = run_clinical_analysis(raw_text)
-        st.write("✅ Clinical analysis complete!")
+        print("✅ Clinical analysis complete!")
         # C. Display Results in Columns (Keep original UI)
         col1, col2 = st.columns(2)
 
         with col1:
             st.subheader("📊 Extracted Lab Values")
             st.info(result["extracted_data"])
-            
+            print("Extracted lab values:")
             with st.expander("View Referenced WHO Guidelines"):
+                print("Referenced WHO Guidelines:")
                 st.write(result["guideline_context"])
 
         with col2:
             st.subheader("📝 Drafted Clinical Action Plan")
             st.success(result["final_plan"])
-            
+            print("Drafted clinical action plan:")
+
             # 6. Functional "Approve" Button
             if st.button("Approve & Sign Referral"):
                 st.balloons()
