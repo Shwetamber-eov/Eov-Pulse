@@ -19,6 +19,7 @@ print(f"CHROMA_HOST: {CHROMA_HOST}, CHROMA_PORT: {CHROMA_PORT}, OLLAMA_URL: {OLL
 class AgentState(TypedDict):
     report_text: str           # Raw text from the uploaded PDF
     extracted_data: str        # Structured JSON-like lab results
+    optimized_extracted_data: str  # Optimized search query
     guideline_context: str     # Results found in your ChromaDB
     final_plan: str            # The final referral/follow-up draft
 
@@ -49,6 +50,20 @@ def extract_labs_node(state: AgentState):
     print("Extracted lab values:", response.content)
     return {"extracted_data": response.content}
 
+def optimize_extract_labs_node(state: AgentState):
+    """optimize the extracted lab values for better search results."""
+    print("Optimizing extracted lab values...")
+    prompt = f"""
+    You are an expert medical search optimizer. Based on these extracted patient report details,
+    write a single concise search query (2-3 sentences) designed to find the exact relevant WHO 
+    diagnostic guidelines or nutrient requirements in a textbook database. Do not include patient names or raw numbers.
+    Extracted Details: {state['extracted_data']}
+    Optimized Search Query:
+    """
+    response = llm.invoke(prompt)
+    print("optimized Extracted lab values:", response.content)
+    return {"optimized_extracted_data": response.content}
+
 def search_chroma_node(state: AgentState):
     """
     This is where you bridge to your existing RAG.
@@ -57,14 +72,36 @@ def search_chroma_node(state: AgentState):
     """
     print("Searching ChromaDB for relevant guidelines...")
     # 1. Take the extracted lab value (e.g., HbA1c: 8.5)
-    query = f"WHO guidelines and clinical thresholds for {state['extracted_data']}"
+    query = f"WHO guidelines and clinical thresholds for {state['optimized_extracted_data']}"
     # 2. Perform actual similarity search in your 'local_rag' collection
     # k=2 means get the top 2 most relevant paragraphs from the WHO PDF
-    docs = chroma_client.similarity_search(query, k=2)
+    docs = chroma_client.similarity_search(query, k=8)
 
+    #chroma retriever
+    # chroma_retriever = chroma_client.as_retriever(search_kwargs={"k": 5})
+    # #bm25 retriever
+    # bm25_retriever = BM25Retriever.from_documents(chroma_client._collection.get(include=["documents"])["documents"])
+    # bm25_retriever.k = 5
+    
+    # # Combine the two retrievers into an ensemble retriever
+    # ensemble_retriever = EnsembleRetriever(
+    #     retrievers=[bm25_retriever, chroma_retriever], 
+    #     weights=[0.6, 0.4])
+    # compressor = LLMChainExtractor.from_llm(llm)
+
+    # # Wrap your ensemble retriever with the compressor
+    # compression_retriever = ContextualCompressionRetriever(
+    #     base_compressor=compressor, 
+    #     base_retriever=ensemble_retriever)
+
+    # # Execute the final pipeline using your optimized query
+    # final_documents = compression_retriever.invoke(optimized_query)
+
+    # # Limit to top 2 paragraphs for your final prompt
+    # docs = final_documents[:5]
     # 3. Join the document content into one string for the next LLM node
     retrieved_content = "\n".join([doc.page_content for doc in docs])
-    print("Retrieved guidelines:")
+    print("Retrieved guidelines:", retrieved_content[:100] + "...")
 
     # TODO: Connect this to your existing ChromaDB retrieval logic
     # example_context = "WHO Threshold for HbA1c: >7.0 is Type 2 Diabetes. Action: Specialist Referral."
@@ -87,13 +124,15 @@ def draft_plan_node(state: AgentState):
     return {"final_plan": response.content}
 
 # --- GRAPH CONSTRUCTION ---
-print("extracted node:", extract_labs_node(agent_state := AgentState(report_text="Patient has elevated HbA1c levels.", extracted_data="", guideline_context="", final_plan="")))
+# print("extracted node:", extract_labs_node(agent_state := AgentState(report_text="Patient has elevated HbA1c levels.", extracted_data="", guideline_context="", final_plan="")))
 workflow = StateGraph(AgentState)
 print("Building the clinical analysis workflow...")
 
 # Add Nodes
 workflow.add_node("extractor", extract_labs_node)
 print("Added extractor node.")
+workflow.add_node("optimizer", optimize_extract_labs_node)
+print("Added optimizer node.")
 workflow.add_node("researcher", search_chroma_node)
 print("Added researcher node.")
 workflow.add_node("writer", draft_plan_node)
@@ -102,7 +141,8 @@ print("Added writer node.")
 # Define Edges (The flow)
 
 workflow.set_entry_point("extractor")
-workflow.add_edge("extractor", "researcher")
+workflow.add_edge("extractor", "optimizer")
+workflow.add_edge("optimizer", "researcher")
 workflow.add_edge("researcher", "writer")
 workflow.add_edge("writer", END)
 
