@@ -18,7 +18,7 @@ def run_ingestion():
     loader = DirectoryLoader(target_path, glob="*.pdf", loader_cls=PyPDFLoader)
     docs = loader.load()
     
-    text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=100)
+    text_splitter = RecursiveCharacterTextSplitter(chunk_size=300, chunk_overlap=30)
     chunks = text_splitter.split_documents(docs)
     
     embeddings = OllamaEmbeddings(base_url=OLLAMA_URL, model="nomic-embed-text")
@@ -26,7 +26,11 @@ def run_ingestion():
     # Connect to the running Docker service
     print(f"Connecting to ChromaDB at {CHROMA_HOST}:{CHROMA_PORT}...")
     client = chromadb.HttpClient(host=CHROMA_HOST, port=CHROMA_PORT)
-    
+    try:                                            #to clear the existing collection before ingesting new data
+        client.delete_collection("local_rag")
+        print("Cleared existing collection.")
+    except Exception:
+        print("Collection did not exist yet. Creating fresh.")
     print(f"Uploading {len(chunks)} chunks to ChromaDB at {CHROMA_HOST}...")
     
     db = Chroma.from_documents(
