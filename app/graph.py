@@ -8,11 +8,13 @@ import chromadb
 from langchain_chroma import Chroma
 from langchain_community.llms import Ollama
 from langchain_ollama import OllamaEmbeddings
-
+print("Initializing Ollama Embeddings and ChromaDB client...")
 CHROMA_HOST = os.getenv("CHROMA_HOST", "localhost")
-CHROMA_PORT = int(os.getenv("CHROMA_PORT", "8001"))
+CHROMA_PORT = int(os.getenv("CHROMA_PORT", 8001))
 OLLAMA_URL = os.getenv("OLLAMA_URL", "http://localhost:11434")
 
+# print("Initializing Ollama Embeddings and ChromaDB client...")
+print(f"CHROMA_HOST: {CHROMA_HOST}, CHROMA_PORT: {CHROMA_PORT}, OLLAMA_URL: {OLLAMA_URL}")
 # 1. Define the State
 class AgentState(TypedDict):
     report_text: str           # Raw text from the uploaded PDF
@@ -24,23 +26,27 @@ class AgentState(TypedDict):
 # Ensure you have 'llama3' pulled in your Ollama container
 llm = ChatOllama(
     model="llama3", 
-    base_url="http://host.docker.internal:11434"
+    base_url="http://localhost:11434"
 )
 embeddings = OllamaEmbeddings(base_url=OLLAMA_URL, model="nomic-embed-text")
 client = chromadb.HttpClient(host=CHROMA_HOST, port=CHROMA_PORT)
 chroma_client = Chroma(client=client, collection_name="local_rag", embedding_function=embeddings)
-
+# collection = client.get_collection("local_rag")
+# data = collection.get(include=["documents"])
+# print("ChromaDB collection 'local_rag' documents:", data["documents"])
 # --- NODES ---
 
 def extract_labs_node(state: AgentState):
     """Extracts only numerical lab values and key findings from the messy report."""
+    print("Extracting lab values from report...")
     prompt = f"""
     You are a medical data extractor. Extract only the lab values (e.g. HbA1c, LDL) 
-    from the following text. Ignore all other noise.
+    from the following text. Ignore all other noise. give the output in a structured format (Lab Name: Value (Unit)).and nothing else. if input is not valid then return empty string.
     REPORT: {state['report_text']}
     OUTPUT FORMAT: Lab Name: Value (Unit)
     """
     response = llm.invoke(prompt)
+    print("Extracted lab values:", response.content)
     return {"extracted_data": response.content}
 
 def search_chroma_node(state: AgentState):
@@ -49,6 +55,7 @@ def search_chroma_node(state: AgentState):
     For now, we simulate the tool call. You will replace the 'retriever' 
     call with your specific ChromaDB tool.
     """
+    print("Searching ChromaDB for relevant guidelines...")
     # 1. Take the extracted lab value (e.g., HbA1c: 8.5)
     query = f"WHO guidelines and clinical thresholds for {state['extracted_data']}"
     # 2. Perform actual similarity search in your 'local_rag' collection
@@ -57,7 +64,8 @@ def search_chroma_node(state: AgentState):
 
     # 3. Join the document content into one string for the next LLM node
     retrieved_content = "\n".join([doc.page_content for doc in docs])
-    
+    print("Retrieved guidelines:")
+
     # TODO: Connect this to your existing ChromaDB retrieval logic
     # example_context = "WHO Threshold for HbA1c: >7.0 is Type 2 Diabetes. Action: Specialist Referral."
     
@@ -65,6 +73,8 @@ def search_chroma_node(state: AgentState):
 
 def draft_plan_node(state: AgentState):
     """Compares Labs vs Guidelines and drafts the final action."""
+    print("Drafting final plan...")
+    print(f"Comparing extracted data: {state['extracted_data']} \n with guidelines: {state['guideline_context']}")
     prompt = f"""
     As a clinical assistant, compare the patient's labs with the guidelines.
     PATIENT LABS: {state['extracted_data']}
@@ -73,18 +83,24 @@ def draft_plan_node(state: AgentState):
     TASK: Draft a concise referral or follow-up plan. If labs are normal, state no action.
     """
     response = llm.invoke(prompt)
+    print("Drafted final plan:")
     return {"final_plan": response.content}
 
 # --- GRAPH CONSTRUCTION ---
-
+print("extracted node:", extract_labs_node(agent_state := AgentState(report_text="Patient has elevated HbA1c levels.", extracted_data="", guideline_context="", final_plan="")))
 workflow = StateGraph(AgentState)
+print("Building the clinical analysis workflow...")
 
 # Add Nodes
 workflow.add_node("extractor", extract_labs_node)
+print("Added extractor node.")
 workflow.add_node("researcher", search_chroma_node)
+print("Added researcher node.")
 workflow.add_node("writer", draft_plan_node)
+print("Added writer node.")
 
 # Define Edges (The flow)
+
 workflow.set_entry_point("extractor")
 workflow.add_edge("extractor", "researcher")
 workflow.add_edge("researcher", "writer")
@@ -92,3 +108,4 @@ workflow.add_edge("writer", END)
 
 # Compile the Graph
 clinical_agent = workflow.compile()
+# clinical_agent.invoke({"report_text": "Patient has elevated HbA1c levels.", "extracted_data": "", "guideline_context": "", "final_plan": ""})

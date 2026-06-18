@@ -1,7 +1,7 @@
 import streamlit as st
 from pypdf import PdfReader
 from graph import clinical_agent  # Importing your working graph
-
+print("Starting Streamlit UI...")
 # 1. Page Configuration (Keep original UI)
 st.set_page_config(page_title="EOV Pulse", layout="wide")
 
@@ -14,17 +14,19 @@ with st.sidebar:
     st.success("Ollama: Connected")
     st.success("ChromaDB: Connected")
     st.info("Model: Llama 3 (Reasoning)")
-
+print("UI components set up. Ready for file upload and agent invocation.")
 # 3. Helper function to "Freeze" AI results
 # This prevents rerunning the agent when you click the button
 @st.cache_data
 def run_clinical_analysis(text):
+    print("Running clinical analysis agent...")
     inputs = {
         "report_text": text,
         "extracted_data": "",
         "guideline_context": "",
         "final_plan": ""
     }
+    print("inputs prepared for agent:", inputs)
     return clinical_agent.invoke(inputs)
 
 # 4. Session State for clearing the uploader
@@ -45,13 +47,16 @@ uploaded_file = st.file_uploader(
 
 if uploaded_file is not None:
     with st.spinner("Processing report and consulting WHO guidelines..."):
+        st.write("✅ PDF uploaded successfully!")
         # A. Extract text from PDF
         reader = PdfReader(uploaded_file)
+        st.write("Extracting text from PDF...")
         raw_text = "".join([page.extract_text() for page in reader.pages])
-
+        st.write(raw_text[:500] + "...")  # Show a preview of the extracted text
         # B. Run the Agent (Cached version)
+        st.write("Invoking the clinical analysis agent...")
         result = run_clinical_analysis(raw_text)
-
+        st.write("✅ Clinical analysis complete!")
         # C. Display Results in Columns (Keep original UI)
         col1, col2 = st.columns(2)
 

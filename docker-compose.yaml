@@ -4,7 +4,7 @@ services:
     container_name: chroma-server
     volumes:
       # 1. Persist your data
-      - ./chroma_data:/data 
+      - ./chroma_data:/chroma 
       # 2. Link your separate config file into the container
       - ./config.yaml:/config.yaml 
     ports:
