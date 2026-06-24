@@ -46,7 +46,7 @@ with col1:
     for idx, doc in enumerate(ai_ready_doctors):
         folium.CircleMarker(
             location=[doc["latitude"], doc["longitude"]],
-            radius=8,  # Slightly bigger for easier mobile clicking
+            radius=10,  # Slightly bigger for easier mobile clicking
             tooltip=doc["name"],
             color="#FF4B4B",
             fill=True,
