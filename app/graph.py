@@ -1,5 +1,6 @@
 import os
 from typing import TypedDict, List, Annotated
+from langchain_core.documents import Document
 from langgraph.graph import StateGraph, END
 from langchain_ollama import ChatOllama
 from langchain_core.messages import HumanMessage, SystemMessage
@@ -8,6 +9,16 @@ import chromadb
 from langchain_chroma import Chroma
 from langchain_community.llms import Ollama
 from langchain_ollama import OllamaEmbeddings
+# 1. Imports from langchain-community (Requires: pip install langchain-community rank_bm25)
+from langchain_community.retrievers import BM25Retriever
+
+# 2. Imports from core langchain 
+from langchain_classic.retrievers import EnsembleRetriever, ContextualCompressionRetriever
+# The correct path for the document compressor
+from langchain_classic.retrievers.document_compressors import LLMChainExtractor
+from langchain_community.document_compressors import FlashrankRerank
+
+
 print("Initializing Ollama Embeddings and ChromaDB client...")
 CHROMA_HOST = os.getenv("CHROMA_HOST", "localhost")
 CHROMA_PORT = int(os.getenv("CHROMA_PORT", 8001))
@@ -35,11 +46,30 @@ chroma_client = Chroma(client=client, collection_name="local_rag", embedding_fun
 # collection = client.get_collection("local_rag")
 # data = collection.get(include=["documents"])
 # print("ChromaDB collection 'local_rag' documents:", data["documents"])
+
+#chroma retriever
+chroma_retriever = chroma_client.as_retriever(search_kwargs={"k": 8})
+print("Chroma retriever initialized with k=8: ", chroma_retriever)
+#bm25 retriever
+bm25_documents = [Document(page_content=text) for text in chroma_client._collection.get(include=["documents"])["documents"]]
+bm25_retriever = BM25Retriever.from_documents(bm25_documents)
+bm25_retriever.k = 6
+print("BM25 retriever initialized with k=6 and Chroma retriever with k=8.")
+# Combine the two retrievers into an ensemble retriever
+ensemble_retriever = EnsembleRetriever(
+    retrievers=[bm25_retriever, chroma_retriever], 
+    weights=[0.6, 0.4])
+
+#reranker
+reranker = FlashrankRerank(top_n=5)
+
+
 # --- NODES ---
 
 def extract_labs_node(state: AgentState):
     """Extracts only numerical lab values and key findings from the messy report."""
     print("Extracting lab values from report...")
+    print("Report text preview:", state['report_text'] + "...")
     prompt = f"""
     You are a medical data extractor. Extract only the lab values (e.g. HbA1c, LDL) 
     from the following text. Ignore all other noise. give the output in a structured format (Lab Name: Value (Unit)).and nothing else. if input is not valid then return empty string.
@@ -58,7 +88,7 @@ def optimize_extract_labs_node(state: AgentState):
     write a single concise search query (2-3 sentences) designed to find the exact relevant WHO 
     diagnostic guidelines or nutrient requirements in a textbook database. Do not include patient names or raw numbers.
     Extracted Details: {state['extracted_data']}
-    Optimized Search Query:
+    Optimized Search Query: "only optimized query here"
     """
     response = llm.invoke(prompt)
     print("optimized Extracted lab values:", response.content)
@@ -72,32 +102,37 @@ def search_chroma_node(state: AgentState):
     """
     print("Searching ChromaDB for relevant guidelines...")
     # 1. Take the extracted lab value (e.g., HbA1c: 8.5)
-    query = f"WHO guidelines and clinical thresholds for {state['optimized_extracted_data']}"
+    query = f"WHO guidelines and clinical thresholds for {state['extracted_data']}"
     # 2. Perform actual similarity search in your 'local_rag' collection
     # k=2 means get the top 2 most relevant paragraphs from the WHO PDF
-    docs = chroma_client.similarity_search(query, k=8)
-
-    #chroma retriever
-    # chroma_retriever = chroma_client.as_retriever(search_kwargs={"k": 5})
-    # #bm25 retriever
-    # bm25_retriever = BM25Retriever.from_documents(chroma_client._collection.get(include=["documents"])["documents"])
-    # bm25_retriever.k = 5
+    # docs = chroma_client.similarity_search(query, k=8)
+    print("Querying ChromaDB with:", query)
     
-    # # Combine the two retrievers into an ensemble retriever
-    # ensemble_retriever = EnsembleRetriever(
-    #     retrievers=[bm25_retriever, chroma_retriever], 
-    #     weights=[0.6, 0.4])
+    #-----------------------------------------------------------------#
     # compressor = LLMChainExtractor.from_llm(llm)
-
+    # print("Ensemble retriever and LLMChainExtractor initialized.")
     # # Wrap your ensemble retriever with the compressor
     # compression_retriever = ContextualCompressionRetriever(
     #     base_compressor=compressor, 
     #     base_retriever=ensemble_retriever)
-
+    # print("ContextualCompressionRetriever initialized.")
     # # Execute the final pipeline using your optimized query
-    # final_documents = compression_retriever.invoke(optimized_query)
+    final_documents = ensemble_retriever.invoke(query)
 
-    # # Limit to top 2 paragraphs for your final prompt
+    # Step 1: retrieve candidates
+    # docs = ensemble_retriever.invoke(query)
+
+    # Step 2: rerank (FAST)
+    reranked_docs = reranker.compress_documents(final_documents, query)
+
+    print(f"Reranked to {len(reranked_docs)} docs")
+
+    # Step 3: take top results
+    docs= reranked_docs[:5]
+
+    # print(f"Retrieved {len(final_documents)} documents from ChromaDB after compression.")
+    #------------------------------------------------------------------#
+    # Limit to top 2 paragraphs for your final prompt
     # docs = final_documents[:5]
     # 3. Join the document content into one string for the next LLM node
     retrieved_content = "\n".join([doc.page_content for doc in docs])
@@ -120,7 +155,7 @@ def draft_plan_node(state: AgentState):
     TASK: Draft a concise referral or follow-up plan. If labs are normal, state no action.
     """
     response = llm.invoke(prompt)
-    print("Drafted final plan:")
+    print("Drafted final plan:", response.content)
     return {"final_plan": response.content}
 
 # --- GRAPH CONSTRUCTION ---
