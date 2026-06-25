@@ -1,6 +1,86 @@
 import streamlit as st
 from pypdf import PdfReader
+from streamlit_geolocation import streamlit_geolocation
+from geopy.geocoders import Nominatim
+import folium
+from streamlit_folium import st_folium
+import urllib.parse
+import re
 from graph import clinical_agent  # Importing your working graph
+# from map_scraper import fetch_local_doctors, extract_specialists
+from gmap_test import gmap
+
+
+
+
+
+
+doctors = [
+    {
+    "name": "Oliva Skin, Hair & Laser Clinic Shivaji Nagar, Pune: Laser Hair Removal, Acne Scar, PRP, Skin Whitening Treatments",
+    "category": "Dermatologist",
+    "phone": "+91 89777 55434",
+    "address": "Level 1, Deccan 99 Mall, No 1258, Jangali Maharaj Rd, opposite Deccan Avenue, Pulachi Wadi, Shivajinagar, Pune, Maharashtra 411004, India",
+    "latitude": 18.517222999999998,
+    "longitude": 73.84366399999999,
+    "rating": "4.9 stars",
+    "reviews_count": 1314,
+    "website": "https://locations.olivaclinic.com/oliva-clinic/pune/shivaji-nagar/oliva-skin-hair-and-body-clinic-in-shivaji-nagar-pune--mSY32C/home",
+    "open_state": "Unknown"
+  },
+  {
+    "name": "Clear Skin",
+    "category": "Dermatologist",
+    "phone": "+91 95845 84111",
+    "address": "CTC NO -94, 16 F.P NO -38/16, Prabhat Rd, Erandwane, Pune, Maharashtra 411004, India",
+    "latitude": 18.5142842,
+    "longitude": 73.8342235,
+    "rating": "4.7 stars",
+    "reviews_count": 1508,
+    "website": "https://www.clearskin.in/best-skin-care-clinic-prabhat-road-pune/",
+    "open_state": "Unknown"
+  },
+  {
+    "name": "Kaya Clinic",
+    "category": "Dermatologist",
+    "phone": "+91 86575 69427",
+    "address": "Ground floor, Mantri Vertex, Law College Rd, opposite Nirmitee Furniture, Murlidhar Smruti Society, Apex Colony, Erandwane, Pune, Maharashtra 411004, India",
+    "latitude": 18.5101427,
+    "longitude": 73.8301436,
+    "rating": "4.8 stars",
+    "reviews_count": 845,
+    "website": "https://clinics.kaya.in/near-me/pune/Law-College-Road/kaya-skin-hair-clinic-in-Law-College-Road-pune--1pvSMu/home",
+    "open_state": "Unknown"
+  },
+  {
+    "name": "Taj Skin Hair Laser Clinic Dermatologist Kothrud Pune",
+    "category": "Dermatologist",
+    "phone": "+91 77969 69797",
+    "address": "Stilt floor, Vishnu Arcade, Karve Rd, next to Hotel Sheetal, near Karve statue, Mayur Colony, Kothrud, Pune, Maharashtra 411038, India",
+    "latitude": 18.5024718,
+    "longitude": 73.8162127,
+    "rating": "4.9 stars",
+    "reviews_count": 713,
+    "website": "https://www.tajskin.in/",
+    "open_state": "Unknown"
+  },
+  {
+    "name": "Asia Institute of Hair Transplant",
+    "category": "Skin care clinic",
+    "phone": "+91 72763 71007",
+    "address": "1st Floor, Nandan Pride, Karve Rd, left to Karve Putala, Mayur Colony, Kothrud, Pune, Maharashtra 411038, India",
+    "latitude": 18.5025326,
+    "longitude": 73.81555019999999,
+    "rating": "4.9 stars",
+    "reviews_count": 504,
+    "website": "https://www.skinhairsurgery.com/",
+    "open_state": "Unknown"
+  }
+]
+
+
+
+
 print("Starting Streamlit UI...")
 # 1. Page Configuration (Keep original UI)
 st.set_page_config(page_title="EOV Pulse", layout="wide")
@@ -45,6 +125,36 @@ uploaded_file = st.file_uploader(
     key=f"pdf_uploader_{st.session_state['uploader_key']}"
 )
 
+######################################### getting user location from browser ##############################
+location = streamlit_geolocation()
+addr=""
+coordinates=[]
+# 2. Extract coordinates if the user grants permission
+if location and location.get("latitude") and location.get("longitude"):
+    lat = location["latitude"]
+    lng = location["longitude"]
+    coordinates.append(lat)
+    coordinates.append(lng)
+
+    try:
+        # Always declare a unique user_agent name per OpenStreetMap usage policy
+        geolocator = Nominatim(user_agent="clinical_referral_locator_app")
+        geo_response = geolocator.reverse(f"{lat}, {lng}", timeout=10)     
+        if geo_response:
+            addr=f"{geo_response.address}"
+            print(f"\n**Street Address:**\n{addr}")
+        else:
+            print("Coordinates received, but couldn't resolve a structural address.")
+                
+    except Exception as e:
+        st.error(f"Geocoding service unavailable: {e}")
+
+elif location == {}:
+    st.info("💡 Please click the location button above to fetch coordinates.")
+else:
+    st.warning("⚠️ Location access denied or unavailable. Please enable browser location permissions.")
+
+
 if uploaded_file is not None:
     with st.spinner("Processing report and consulting WHO guidelines..."):
         print("✅ PDF uploaded successfully!")
@@ -57,16 +167,21 @@ if uploaded_file is not None:
         print("Invoking the clinical analysis agent...")
         result = run_clinical_analysis(raw_text)
         print("✅ Clinical analysis complete!")
+
+        # #extracting specialists from llm response
+        # specialists=extract_specialists(result["final_plan"])
+        # #fetching nearby specialists
+        # nearby_specialists=fetch_local_doctors(specialists,addr,coordinates)
+
         # C. Display Results in Columns (Keep original UI)
         col1, col2 = st.columns(2)
-
         with col1:
             st.subheader("📊 Extracted Lab Values")
             st.info(result["extracted_data"])
             print("Extracted lab values:")
             with st.expander("View Referenced WHO Guidelines"):
                 print("Referenced WHO Guidelines:")
-                st.write(result["guideline_context"])
+                st.write(f"{result["guideline_context"][:2000]}...")
 
         with col2:
             st.subheader("📝 Drafted Clinical Action Plan")
@@ -80,4 +195,5 @@ if uploaded_file is not None:
                 
                 # Option to clear the screen and start over
                 st.button("Reset / New Patient", on_click=clear_report)
-
+        with st.spinner("Locating nearby Doctors on map"):
+            gmap(doctors)

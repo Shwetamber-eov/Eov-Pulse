@@ -15,6 +15,7 @@ fastapi               # To create the API server
 langchain_community
 langgraph               # For visualizing the RAG graph
 streamlit               # For creating a simple UI to interact with your RAG system
+streamlit-folium        # For displaying maps in the Streamlit UI 
 re                      # For regex-operations to clean and process text
 geopy                   # For calculating distances between locations
 spacy                   #Location extraction from user queries
