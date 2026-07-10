@@ -1,7 +1,7 @@
 import os
 import re
 import chromadb
-from langchain_community.document_loaders import DirectoryLoader, PyPDFLoader
+from langchain_community.document_loaders import DirectoryLoader, PDFPlumberLoader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_chroma import Chroma
 from langchain_community.embeddings import OllamaEmbeddings
@@ -16,7 +16,7 @@ OLLAMA_URL = os.getenv("OLLAMA_URL", "http://localhost:11434")
 def run_ingestion():
     target_path = os.path.join("..", "data")
     print(f"Loading PDF files from {target_path}...")
-    loader = DirectoryLoader(target_path, glob="*.pdf", loader_cls=PyPDFLoader)
+    loader = DirectoryLoader(target_path, glob="*.pdf", loader_cls=PDFPlumberLoader)
     docs = loader.load()
     
     text_splitter = RecursiveCharacterTextSplitter(chunk_size=300, chunk_overlap=30)
@@ -105,35 +105,24 @@ def run_ingestion():
     r"(?i)doi:\s10\.\S+",                 # Digital Object Identifiers (safe edge termination)
     r"(?i)contents\s+\d+",                # Table of contents lines
     r"^\s*\d+\s*$",                       # Lines that are just page numbers
-    
-    # --- FIXED FOR MEDICAL VALUES & TABLES ---
-    
     # Strictly matches HTML tags (<br>, <div>). Ignores mathematical comparisons (< 180, P < 0.001)
     r"</?[a-zA-Z][^>]*>",                       
-    
     # Matches brackets containing ONLY specific metadata words (e.g. [Confidential], [Page 1]). 
     # Leaves medical ranges like [(180–300 pg/mL)] completely untouched.
     r"\[\s*(?:page|pg|confidential|section|sidebar)\b[^\]]*\]",
-    
     # Matches repeated punctuation but avoids stripping spaces or table cell separators.
     # Protects hyphenated ranges like "18–24 years" by ensuring it only targets 3+ repetitions.
     r"[\-_*=]{3,}",                            
-    
     # Matches consecutive dots (like text...text) but preserves table row leading dots (minimum 4 dots).
     r"\.{4,}",
-    
     # Matches page headers but excludes 'pg' to prevent deleting 'pg/mL' (picograms)
-    r"(?i)\b(page|section|sect\.)\.?\s*\d+|\bconfidential\b", 
-    
+    r"(?i)\b(page|section|sect\.)\.?\s*\d+|\bconfidential\b",     
     # Matches system timestamps
     r"\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}:\d{2}",    
-    
     # Matches URLs and file paths
     r"https?://\S+|www\.\S+|[a-zA-Z]:\\[^\s]+",  
-    
     # Relaxes OCR noise filter. No longer deletes standalone math symbols or structural punctuation.
     r"\b[^\w\s]{3,}\b",                          
-    
     # Matches excessive whitespace but leaves single newlines/tabs intact to preserve table columns
     r"[ \t]{2,}"                               
 ]
@@ -159,7 +148,7 @@ def run_ingestion():
     
         # Triage: Keep it only if it contains at least 1 unique core keyword 
         # AND is mostly actual prose text (not a raw data table)
-        if len(words_found) >= 1 and alpha_ratio > 0.30:
+        if len(words_found) >= 2 and alpha_ratio > 0.30:
             # Prepend Nomic search prefix for best vector matching performance
             chunk.page_content = f"search_document: {chunk.page_content}"
             important_documents.append(chunk)
