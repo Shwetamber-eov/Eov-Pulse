@@ -6,9 +6,9 @@ import re
 from geopy.distance import geodesic
 
 # Replace with your actual free SerpApi Key
-SERP_API_KEY = "api_key"
+SERP_API_KEY = "API_KEY_HERE"
 
-def fetch_local_doctors(specialty, location, user_location):
+def fetch_local_doctors(specialty, location, user_coordinates):
     print(f"Querying SerpApi REST Endpoint for: '{specialty} clinic in {location}'...")
     
     # SerpApi's direct web routing parameters
@@ -41,7 +41,7 @@ def fetch_local_doctors(specialty, location, user_location):
         no_of_doctors=5
         distance_threshold=5    #in km
         #filtering list based on distance threshold
-        valid_listings = [item for item in raw_listings if round(geodesic(user_location,(item.get("gps_coordinates", {}).get("latitude"), item.get("gps_coordinates", {}).get("longitude"))).km,2) <= distance_threshold]
+        valid_listings = [item for item in raw_listings if round(geodesic(user_coordinates,(item.get("gps_coordinates", {}).get("latitude"), item.get("gps_coordinates", {}).get("longitude"))).km,2) <= distance_threshold]
         #sorting list based on ratings and reviews count
         top_n_listings = heapq.nlargest(no_of_doctors, valid_listings, key=lambda x: x.get("rating", 0) * math.log10(x.get("reviews", 0) + 1))
         ai_ready_doctors = []
@@ -66,7 +66,7 @@ def fetch_local_doctors(specialty, location, user_location):
         return []
 
 # Run validation lookup trace
-doctors_json_payload = fetch_local_doctors(specialty="Dermatologist", location="Erandwane, Pune")
+# doctors_json_payload = fetch_local_doctors(specialty="Dermatologist", location="Erandwane, Pune")
 
 def extract_specialists(text):
     # Regex looks for "Specialist Referral:" and captures everything until the end of the line
