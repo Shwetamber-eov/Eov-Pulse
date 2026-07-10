@@ -4,68 +4,68 @@ from streamlit_folium import st_folium
 import urllib.parse
 # import pandas as pd
 # Sample data matching your ai_ready_doctors structure (with lat/lon added)
-doctors = [
-    {
-    "name": "Oliva Skin, Hair & Laser Clinic Shivaji Nagar, Pune: Laser Hair Removal, Acne Scar, PRP, Skin Whitening Treatments",
-    "category": "Dermatologist",
-    "phone": "+91 89777 55434",
-    "address": "Level 1, Deccan 99 Mall, No 1258, Jangali Maharaj Rd, opposite Deccan Avenue, Pulachi Wadi, Shivajinagar, Pune, Maharashtra 411004, India",
-    "latitude": 18.517222999999998,
-    "longitude": 73.84366399999999,
-    "rating": "4.9 stars",
-    "reviews_count": 1314,
-    "website": "https://locations.olivaclinic.com/oliva-clinic/pune/shivaji-nagar/oliva-skin-hair-and-body-clinic-in-shivaji-nagar-pune--mSY32C/home",
-    "open_state": "Unknown"
-  },
-  {
-    "name": "Clear Skin",
-    "category": "Dermatologist",
-    "phone": "+91 95845 84111",
-    "address": "CTC NO -94, 16 F.P NO -38/16, Prabhat Rd, Erandwane, Pune, Maharashtra 411004, India",
-    "latitude": 18.5142842,
-    "longitude": 73.8342235,
-    "rating": "4.7 stars",
-    "reviews_count": 1508,
-    "website": "https://www.clearskin.in/best-skin-care-clinic-prabhat-road-pune/",
-    "open_state": "Unknown"
-  },
-  {
-    "name": "Kaya Clinic",
-    "category": "Dermatologist",
-    "phone": "+91 86575 69427",
-    "address": "Ground floor, Mantri Vertex, Law College Rd, opposite Nirmitee Furniture, Murlidhar Smruti Society, Apex Colony, Erandwane, Pune, Maharashtra 411004, India",
-    "latitude": 18.5101427,
-    "longitude": 73.8301436,
-    "rating": "4.8 stars",
-    "reviews_count": 845,
-    "website": "https://clinics.kaya.in/near-me/pune/Law-College-Road/kaya-skin-hair-clinic-in-Law-College-Road-pune--1pvSMu/home",
-    "open_state": "Unknown"
-  },
-  {
-    "name": "Taj Skin Hair Laser Clinic Dermatologist Kothrud Pune",
-    "category": "Dermatologist",
-    "phone": "+91 77969 69797",
-    "address": "Stilt floor, Vishnu Arcade, Karve Rd, next to Hotel Sheetal, near Karve statue, Mayur Colony, Kothrud, Pune, Maharashtra 411038, India",
-    "latitude": 18.5024718,
-    "longitude": 73.8162127,
-    "rating": "4.9 stars",
-    "reviews_count": 713,
-    "website": "https://www.tajskin.in/",
-    "open_state": "Unknown"
-  },
-  {
-    "name": "Asia Institute of Hair Transplant",
-    "category": "Skin care clinic",
-    "phone": "+91 72763 71007",
-    "address": "1st Floor, Nandan Pride, Karve Rd, left to Karve Putala, Mayur Colony, Kothrud, Pune, Maharashtra 411038, India",
-    "latitude": 18.5025326,
-    "longitude": 73.81555019999999,
-    "rating": "4.9 stars",
-    "reviews_count": 504,
-    "website": "https://www.skinhairsurgery.com/",
-    "open_state": "Unknown"
-  }
-]
+# doctors = [
+#     {
+#     "name": "Oliva Skin, Hair & Laser Clinic Shivaji Nagar, Pune: Laser Hair Removal, Acne Scar, PRP, Skin Whitening Treatments",
+#     "category": "Dermatologist",
+#     "phone": "+91 89777 55434",
+#     "address": "Level 1, Deccan 99 Mall, No 1258, Jangali Maharaj Rd, opposite Deccan Avenue, Pulachi Wadi, Shivajinagar, Pune, Maharashtra 411004, India",
+#     "latitude": 18.517222999999998,
+#     "longitude": 73.84366399999999,
+#     "rating": "4.9 stars",
+#     "reviews_count": 1314,
+#     "website": "https://locations.olivaclinic.com/oliva-clinic/pune/shivaji-nagar/oliva-skin-hair-and-body-clinic-in-shivaji-nagar-pune--mSY32C/home",
+#     "open_state": "Unknown"
+#   },
+#   {
+#     "name": "Clear Skin",
+#     "category": "Dermatologist",
+#     "phone": "+91 95845 84111",
+#     "address": "CTC NO -94, 16 F.P NO -38/16, Prabhat Rd, Erandwane, Pune, Maharashtra 411004, India",
+#     "latitude": 18.5142842,
+#     "longitude": 73.8342235,
+#     "rating": "4.7 stars",
+#     "reviews_count": 1508,
+#     "website": "https://www.clearskin.in/best-skin-care-clinic-prabhat-road-pune/",
+#     "open_state": "Unknown"
+#   },
+#   {
+#     "name": "Kaya Clinic",
+#     "category": "Dermatologist",
+#     "phone": "+91 86575 69427",
+#     "address": "Ground floor, Mantri Vertex, Law College Rd, opposite Nirmitee Furniture, Murlidhar Smruti Society, Apex Colony, Erandwane, Pune, Maharashtra 411004, India",
+#     "latitude": 18.5101427,
+#     "longitude": 73.8301436,
+#     "rating": "4.8 stars",
+#     "reviews_count": 845,
+#     "website": "https://clinics.kaya.in/near-me/pune/Law-College-Road/kaya-skin-hair-clinic-in-Law-College-Road-pune--1pvSMu/home",
+#     "open_state": "Unknown"
+#   },
+#   {
+#     "name": "Taj Skin Hair Laser Clinic Dermatologist Kothrud Pune",
+#     "category": "Dermatologist",
+#     "phone": "+91 77969 69797",
+#     "address": "Stilt floor, Vishnu Arcade, Karve Rd, next to Hotel Sheetal, near Karve statue, Mayur Colony, Kothrud, Pune, Maharashtra 411038, India",
+#     "latitude": 18.5024718,
+#     "longitude": 73.8162127,
+#     "rating": "4.9 stars",
+#     "reviews_count": 713,
+#     "website": "https://www.tajskin.in/",
+#     "open_state": "Unknown"
+#   },
+#   {
+#     "name": "Asia Institute of Hair Transplant",
+#     "category": "Skin care clinic",
+#     "phone": "+91 72763 71007",
+#     "address": "1st Floor, Nandan Pride, Karve Rd, left to Karve Putala, Mayur Colony, Kothrud, Pune, Maharashtra 411038, India",
+#     "latitude": 18.5025326,
+#     "longitude": 73.81555019999999,
+#     "rating": "4.9 stars",
+#     "reviews_count": 504,
+#     "website": "https://www.skinhairsurgery.com/",
+#     "open_state": "Unknown"
+#   }
+# ]
 def gmap(ai_ready_doctors):
     start_lat = ai_ready_doctors[0]["latitude"]
     start_lon = ai_ready_doctors[0]["longitude"]
@@ -160,6 +160,8 @@ def gmap(ai_ready_doctors):
             bg = "#FFF5F5" if is_selected else "white"
             query_string = urllib.parse.quote(f"{doc['name']}, {doc['address']}")
             gmap_link = (f"https://google.com/maps/search/?api=1&query={query_string}")
+            # gmap_link = (f"https://google.com/maps/dir/?api=1&query={query_string}")
+
             cards_html += f"""
             <div
                 id="doc-card-{idx}"
