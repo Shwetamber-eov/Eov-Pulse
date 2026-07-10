@@ -15,6 +15,22 @@ services:
     networks:
       - clinical-net
   
+  ollama:
+    image: ollama/ollama:latest
+    container_name: ollama-server
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    environment:
+      # Allow up to 4 requests to process at the exact same time
+      - OLLAMA_NUM_PARALLEL=4
+      # Restrict each model instance to 2-4 threads so they don't starve each other
+      - OLLAMA_NUM_THREADS=4
+      # Prevent the model from being unloaded from memory between fast sequential calls
+      - OLLAMA_KEEP_ALIVE=60m
+    restart: unless-stopped
+
   ingestor:
     build: .
     container_name: rag-ingestor
