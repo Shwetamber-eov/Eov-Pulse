@@ -4,7 +4,7 @@ services:
     container_name: chroma-server
     volumes:
       # 1. Persist your data
-      - ./chroma_data:/chroma 
+      - ./chroma_data/chroma:/chroma
       # 2. Link your separate config file into the container
       - ./config.yaml:/config.yaml 
     ports:
@@ -21,7 +21,7 @@ services:
     ports:
       - "11434:11434"
     volumes:
-      - ollama_data:/root/.ollama
+      - ./ollama_data:/root/.ollama
     environment:
       # Allow up to 4 requests to process at the exact same time
       - OLLAMA_NUM_PARALLEL=4
