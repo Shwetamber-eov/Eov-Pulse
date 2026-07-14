@@ -14,7 +14,7 @@ from langchain_ollama import OllamaEmbeddings
 from langchain_community.retrievers import BM25Retriever
 
 # 2. Imports from core langchain 
-from langchain_classic.retrievers import EnsembleRetriever, ContextualCompressionRetriever
+from langchain_classic.retrievers import EnsembleRetriever, ContextualCompressionRetriever, MergerRetriever
 # The correct path for the document compressor
 from langchain_classic.retrievers.document_compressors import LLMChainExtractor
 from langchain_community.document_compressors import FlashrankRerank
@@ -33,6 +33,7 @@ class AgentState(TypedDict):
     extracted_data: str        # Structured JSON-like lab results
     # optimized_extracted_data: str  # Optimized search query
     guideline_context: str     # Results found in your ChromaDB
+    # important_guidelines: str  # filter most relevant guidelines from guideline_context
     final_plan: str            # The final referral/follow-up draft
 
 # 2. Initialize the Model (Pointing to your Ollama Docker address)
@@ -44,21 +45,31 @@ llm = ChatOllama(
 embeddings = OllamaEmbeddings(base_url=OLLAMA_URL, model="nomic-embed-text")
 client = chromadb.HttpClient(host=CHROMA_HOST, port=CHROMA_PORT)
 chroma_client = Chroma(client=client, collection_name="local_rag", embedding_function=embeddings)
-# collection = client.get_collection("local_rag")
+# chroma_client1 = Chroma(client=client, collection_name="local_rag2", embedding_function=embeddings)
+# chroma_client2 = Chroma(client=client, collection_name="local_rag3", embedding_function=embeddings)
+collection = client.get_collection("local_rag")
 # data = collection.get(include=["documents"])
 # print("ChromaDB collection 'local_rag' documents:", data["documents"])
 
 #chroma retriever
-chroma_retriever = chroma_client.as_retriever(search_kwargs={"k": 8})
-print("Chroma retriever initialized with k=8: ", chroma_retriever)
+
+chroma_retriever= chroma_client.as_retriever(search_kwargs={"k": 8})
+# chroma_retriever1 = chroma_client1.as_retriever(search_kwargs={"k": 8})
+# chroma_retriever2 = chroma_client2.as_retriever(search_kwargs={"k": 8})
+
+# multi_collection_retriever = MergerRetriever(retrievers=[chroma_retriever1, chroma_retriever2])
+
+print("Chroma retriever initialized with k=8: ")
 #bm25 retriever
+# bm25_documents = [Document(page_content=text) if "Blood Test Normal Range" not in text else Document(page_content=text[100:]) for text in (chroma_client._collection.get(include=["documents"])["documents"] for chroma_client in [chroma_client1, chroma_client2])]
 bm25_documents = [Document(page_content=text) if "Blood Test Normal Range" not in text else Document(page_content=text[100:]) for text in chroma_client._collection.get(include=["documents"])["documents"]]
 bm25_retriever = BM25Retriever.from_documents(bm25_documents)
 bm25_retriever.k = 8
 print("BM25 retriever initialized with k=8 and Chroma retriever with k=8.")
 # Combine the two retrievers into an ensemble retriever
 ensemble_retriever = EnsembleRetriever(
-    retrievers=[bm25_retriever, chroma_retriever], 
+    retrievers=[bm25_retriever, chroma_retriever],
+    # retrievers=[bm25_retriever, multi_collection_retriever], 
     weights=[0.6, 0.4])
 
 #reranker
@@ -181,22 +192,11 @@ def search_chroma_node(state: AgentState):
     """
     print("Searching ChromaDB for relevant guidelines...")
     # 1. Take the extracted lab value (e.g., HbA1c: 8.5)
-    query = f"{state['optimized_extracted_data']}"
-    # 2. Perform actual similarity search in your 'local_rag' collection
-    # k=2 means get the top 2 most relevant paragraphs from the WHO PDF
-    # docs = chroma_client.similarity_search(query, k=8)
+    # query = f"{state['optimized_extracted_data']}"
+    query = f"{state['extracted_data']}"
 
     # print("Querying ChromaDB with:", query)
     
-    #-----------------------------------------------------------------#
-    # compressor = LLMChainExtractor.from_llm(llm)
-    # print("Ensemble retriever and LLMChainExtractor initialized.")
-    # # Wrap your ensemble retriever with the compressor
-    # compression_retriever = ContextualCompressionRetriever(
-    #     base_compressor=compressor, 
-    #     base_retriever=ensemble_retriever)
-    # print("ContextualCompressionRetriever initialized.")
-    # # Execute the final pipeline using your optimized query
     final_documents = ensemble_retriever.invoke(query)
 
     # Step 1: retrieve candidates
@@ -207,7 +207,7 @@ def search_chroma_node(state: AgentState):
     print(f"Reranked to {len(reranked_docs)} docs")
 
     # Step 3: take top results
-    docs= reranked_docs[:5]
+    docs= reranked_docs[:3]
 
     # print(f"Retrieved {len(final_documents)} documents from ChromaDB after compression.")
     #------------------------------------------------------------------#
@@ -219,8 +219,39 @@ def search_chroma_node(state: AgentState):
 
     # TODO: Connect this to your existing ChromaDB retrieval logic
     # example_context = "WHO Threshold for HbA1c: >7.0 is Type 2 Diabetes. Action: Specialist Referral."
-    
-    return {"guideline_context": retrieved_content}
+    print("Filtering retrieved guidelines for relevance...")
+    prompt = f"""<|begin_of_text|><|start_header_id|>system<|end_header_id|>
+
+You extract laboratory reference information.
+
+Rules:
+- Use ONLY the retrieved context.
+- Extract information ONLY for the requested test.
+- Ignore all other tests and unrelated text.
+- Do NOT interpret results.
+- Do NOT diagnose.
+- Return JSON only.
+
+JSON:
+{{
+  "test_name": "",
+  "reference_range": "",
+  "unit": ""
+}}
+
+<|eot_id|><|start_header_id|>user<|end_header_id|>
+
+Lab Test:
+{state['extracted_data']}
+
+Retrieved Context:
+{retrieved_content}
+
+<|eot_id|><|start_header_id|>assistant<|end_header_id|>
+"""
+    response = llm.invoke(prompt)
+    return {"guideline_context": response.content}
+
 
 def draft_plan_node(state: AgentState):
     """Compares Labs vs Guidelines and drafts the final action."""
@@ -228,31 +259,35 @@ def draft_plan_node(state: AgentState):
     print(f"Comparing extracted data: {state['extracted_data']} \n with guidelines: {state['guideline_context']}")
     prompt = f"""<|begin_of_text|><|start_header_id|>system<|end_header_id|>
 
-        You are a precise clinical assistant. Your task is to analyze patient lab data against medical guidelines, identify specific pathologies, and determine the exact medical specialty required for a referral.
+You are a clinical assistant.
 
-        CRITICAL INSTRUCTIONS:
-            - If all lab values are within normal limits, output exactly: "Status: Normal. No action required." Do not generate a plan or specialist.
-            - If any lab value is abnormal, you must identify the exact medical specialist required (e.g., Nephrologist, Endocrinologist, Hematologist, Cardiologist). Do not use vague terms like "specialist" or "physician".
-            - Keep the follow-up plan concise and strictly limited to actionable next steps.
-            - Rely only on the provided context. Do not assume or extrapolate.
+For each lab test:
 
-        OUTPUT FORMAT (Strictly adhere to this layout if abnormal):
-        Status: Abnormal
-        
-        Specialist Referral: [Insert Specific Specialist Name]
-        Plan: [Insert concise medical follow-up plan]
+1. Read the patient value.
+2. Read the reference range.
+3. Compare numerically.
+4. If value < lower limit → Low.
+5. If value > upper limit → High.
+6. Otherwise → Normal.
 
-        <|eot_id|><|start_header_id|>user<|end_header_id|>
+If every test is Normal, output exactly:
+Status: Normal. No action required.
+Otherwise output:
+Status: Abnormal
+Specialist Referral: <specialist>
+Plan: <brief follow-up>
 
-        Please evaluate the following clinical data:
+Return only the final answer.
 
-        ### PATIENT LABS:
-        {state['extracted_data']}
+<|eot_id|><|start_header_id|>user<|end_header_id|>
 
-        ### WHO GUIDELINES:
-        {state['guideline_context']}
+Patient Labs:
+{state['extracted_data']}
 
-        <|eot_id|><|start_header_id|>assistant<|end_header_id|>"""
+Guidelines:
+{state['guideline_context']}
+
+<|eot_id|><|start_header_id|>assistant<|end_header_id|>"""
 
     response = llm.invoke(prompt)
     print("Drafted final plan:", response.content)

@@ -9,7 +9,7 @@ from langchain_community.embeddings import OllamaEmbeddings
 CHROMA_HOST = os.getenv("CHROMA_HOST", "localhost")
 CHROMA_PORT = int(os.getenv("CHROMA_PORT", 8001))
 OLLAMA_URL = os.getenv("OLLAMA_URL", "http://localhost:11434")
-COLLECTION_NAME = "local_rag"
+COLLECTION_NAME = "local_rag3"
 
 client=chromadb.HttpClient(host=CHROMA_HOST,port=CHROMA_PORT)
 # try:                                            #to clear the existing collection before ingesting new data

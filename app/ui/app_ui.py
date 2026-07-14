@@ -7,9 +7,17 @@ import folium
 from streamlit_folium import st_folium
 import urllib.parse
 import re
-from graph import clinical_agent  # Importing your working graph
-from map_scraper import fetch_local_doctors, extract_specialists
+
+from pathlib import Path
+import sys
 from gmap_test import gmap
+
+ROOT = Path(__file__).resolve().parent.parent.parent
+sys.path.insert(0, str(ROOT))
+
+from app.backend.graph import clinical_agent  # Importing your working graph
+from app.backend.map_scraper import fetch_local_doctors, extract_specialists
+from testing.clinical import extract_tables_and_text, run_clinical_analysis
 
 # doctors = [
 #     {
@@ -93,17 +101,7 @@ with st.sidebar:
 print("UI components set up. Ready for file upload and agent invocation.")
 # 3. Helper function to "Freeze" AI results
 # This prevents rerunning the agent when you click the button
-@st.cache_data
-def run_clinical_analysis(text):
-    print("Running clinical analysis agent...")
-    inputs = {
-        "report_text": text,
-        "extracted_data": "",
-        "guideline_context": "",
-        "final_plan": ""
-    }
-    print("inputs prepared for agent:")
-    return clinical_agent.invoke(inputs)
+
 
 # 4. Session State for clearing the uploader
 if "uploader_key" not in st.session_state:
@@ -151,22 +149,7 @@ else:
     st.warning("⚠️ Location access denied or unavailable. Please enable browser location permissions.")
 
 
-def extract_tables_and_text(pdf_path):
-    complete_text=""
-    with pdfplumber.open(pdf_path) as pdf:
-        for page_num, page in enumerate(pdf.pages):
-            complete_text+="\n\nnewwpagee\n\n"
-            
-            # Extract plain text with layout preserved
-            text = page.extract_text(layout=True)
-            complete_text+=f"\n{text}"
-            
-            # Extract structured tables (e.g., Vitamin D, WBC counts)
-            tables = page.extract_tables()
-            for table in tables:
-                for row in table:
-                    complete_text+=f"\n{row}"  # Output as a list of strings representing cells
-    return complete_text
+#extract text function
 
 
 if uploaded_file is not None:

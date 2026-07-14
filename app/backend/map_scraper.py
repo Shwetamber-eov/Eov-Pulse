@@ -6,7 +6,7 @@ import re
 from geopy.distance import geodesic
 
 # Replace with your actual free SerpApi Key
-SERP_API_KEY = "API_KEY_HERE"
+SERP_API_KEY = "API_KEY"
 
 def fetch_local_doctors(specialty, location, user_coordinates):
     print(f"Querying SerpApi REST Endpoint for: '{specialty} clinic in {location}'...")
