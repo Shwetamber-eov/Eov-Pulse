@@ -1,6 +1,6 @@
 # Chroma v1.0.0 Configuration
 # Path where the database will be stored (matches the volume in docker-compose)
-persist_path: "/chroma_data/chroma"
+persist_path: "/chroma"
 
 # Allow the database to be reset via the API (useful for development)
 allow_reset: true
