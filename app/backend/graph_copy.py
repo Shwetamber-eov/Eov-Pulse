@@ -63,23 +63,7 @@ chroma_client = Chroma(client=client, collection_name="local_rag4", embedding_fu
 
 # # print("documents page content: ",data["documents"][:5])
 # # print("documents metadata: ", data["metadatas"][:5])
-# bm25_documents = [
-#     Document(
-#         page_content=doc,
-#         metadata=meta
-#     )
-#     for doc, meta in zip(
-#         data["documents"],
-#         data["metadatas"]
-#     )
-# ]
 
-# bm25_retriever = BM25Retriever.from_documents(bm25_documents)
-# bm25_retriever.k = 8
-
-# bm25_docs = bm25_retriever.invoke("hg")
-# print(bm25_docs)
-# print("bm25 retriever initialized with k=8: " )
 
 #reranker
 reranker = FlashrankRerank(top_n=5)
@@ -157,7 +141,7 @@ Schema:
     {{
         "test_name": "",
         "value": null if not given,
-        "status/range": "" (status: good or (range: 100 1000 or range: <500) if given
+        "status/range": "" (status: good) or (range: 100 1000 or range: <500) if given
         "unit": "",
         "demographic_group": "either of (Adult (All),Adult Male, Adult Female, "" if unknown)",
         "panel_name": "" such as CBC,CMP,Liver Function,Lipid,Vitamin
@@ -258,7 +242,7 @@ def retrieve_guidelines_node(state: AgentState):
     labs = state["extracted_data"]
     print(len(labs))
     if len(labs)==0:
-        return {"guideline_context": "no data extracted so no guidelines can be retrieved"}
+        return {"guideline_context": [{"content":"no data extracted so no guidelines can be retrieved"}]}
     all_documents = []
 
     # ---------------------------------------
@@ -280,25 +264,64 @@ def retrieve_guidelines_node(state: AgentState):
 
     for _, test in unique_tests.items():
         print("inside for loop")
-        chroma_retriever= chroma_client.as_retriever(
+        # 1. Start with the condition that is always present
+        filter_conditions = [
+            {"demographic_group": test[1].strip().lower()}
+        ]
+
+        # 2. Extract and check the panel_name condition safely
+        # (Handles if test doesn't have index 2, or if it is None / empty string)
+        panel_name = test[2].strip().lower() if len(test) > 2 and test[2] else None
+
+        if panel_name:
+            filter_conditions.append({"panel_name": panel_name})
+
+        # 3. Determine the final filter structure based on how many conditions we have
+        if len(filter_conditions) > 1:
+            final_filter = {"$and": filter_conditions}
+        else:
+            final_filter = filter_conditions[0]  # If only demographic_group is present
+
+        # 4. Pass the dynamically constructed filter to your retriever
+        chroma_retriever = chroma_client.as_retriever(
             search_kwargs={
-                "filter": {
-                    "$and": [
-                        {"panel_name": test[2].strip().lower()},
-                        {"demographic_group": test[1].strip().lower()}
-                        ]},
-                        "k": 2})
+                "filter": final_filter,
+                "k": 2
+            }
+        )
+
+        # chroma_retriever= chroma_client.as_retriever(
+        #     search_kwargs={
+        #         "filter": {
+        #             "$and": [
+        #                 {"panel_name": test[2].strip().lower()},
+        #                 {"demographic_group": test[1].strip().lower()}
+        #                 ]},
+        #                 "k": 2})
+
         print("after chrom retriever initialized")
         query = f"{test[0]}"
         print(f"Searching: {query}")
         docs = chroma_retriever.invoke(query)
         # all_documents.extend([docs])
         all_documents.extend(docs)
+    print("checking condiion for 2nd loop")
+    if len(all_documents)==0:
+        for _, test in unique_tests.items():
+            print("inside 2nd for loop")
+            chroma_retriever = chroma_client.as_retriever(search_kwargs={"k": 2})
+            print("after chrom retriever initialized")
+            query = f"{test[0]}"
+            print(f"Searching: {query}")
+            docs = chroma_retriever.invoke(query)
+            all_documents.extend(docs)
 
     print("outside for loop")
     print(f"\nRetrieved {len(all_documents)} documents")
     if len(all_documents)==0:
-        return {"guideline_context": "no guidelines retrieved"}
+        if len(all_documents) == 0:
+            # Return a dictionary containing a list with one dictionary item
+            return {"guideline_context": [{"content": "No guidelines retrieved."}]}
 
     # ---------------------------------------
     # Remove duplicate documents
@@ -364,10 +387,12 @@ def clinical_reasoning_node(state: AgentState):
     print("=" * 60)
 
     labs = state["extracted_data"]
+    print("labs stored")
     context = "\n\n".join(
         doc["content"]
         for doc in state["guideline_context"]
     )
+    print("before prompt")
 
     prompt = f"""
 You are an experienced clinical decision support assistant.
@@ -404,7 +429,7 @@ Rules
 
 1. Match each laboratory test with the guideline.
 
-2. Extract the correct reference range.
+2. Extract the correct reference range and critical range.
 
 3. Compare numerically.
 
@@ -438,6 +463,7 @@ status = Unknown
 
 9. Return ONLY JSON.
 """
+    print("after prompt")
     print(f"passing extracted data {state['extracted_data']} \nwith guideline context {state['guideline_context']}")
     response = llm.invoke(
         [
