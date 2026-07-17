@@ -4,6 +4,11 @@ import chromadb
 from langchain_chroma import Chroma
 from langchain_ollama import OllamaEmbeddings
 from langchain_core.documents import Document
+from ingest_logger.rag_logger import log_ingestion
+from pathlib import Path
+
+# Gets the folder where your current script resides
+ROOT = Path(__file__).resolve().parent.parent.parent
 
 # -----------------------------
 # Configuration
@@ -12,7 +17,7 @@ CHROMA_HOST = os.getenv("CHROMA_HOST", "localhost")
 CHROMA_PORT = int(os.getenv("CHROMA_PORT", 8001))
 OLLAMA_URL = os.getenv("OLLAMA_URL", "http://localhost:11434")
 
-CSV_FILE = "thresholds_rag1.csv"
+CSV_FILE = ROOT / "data" / "thresholds_rag1.csv"
 COLLECTION_NAME = "local_rag3"   #2 == table data
 
 # -----------------------------
@@ -28,62 +33,67 @@ client = chromadb.HttpClient(
     port=CHROMA_PORT,
 )
 
-vectorstore = Chroma(
-    client=client,
-    collection_name=COLLECTION_NAME,
-    embedding_function=embeddings,
-)
 
-# -----------------------------
-# Read CSV
-# -----------------------------
-df = pd.read_csv(CSV_FILE).fillna("")
-# df = pd.read_excel(CSV_FILE).fillna("")
-
-print(f"Loaded {len(df)} rows")
-
-documents = []
-
-for _, row in df.iterrows():
-
-    # searchable text
-    text = ", ".join(
-        f"{col}: {row[col]}"
-        for col in df.columns
-        if str(row[col]).strip() != ""
-    )
-
-    metadata = {
-    "normalized_name": row["normalized_name"].strip().lower(),
-    "biomarker_name": row["biomarker_name"].strip().lower(),
-    "panel_name": row["panel_name"].strip().lower(),
-    "demographic_group": row["demographic_group"].strip().lower(),
-    }
-    documents.append(
-        Document(
-            page_content=text,
-            metadata=metadata
-        )
-    )
-
-print(f"Prepared {len(documents)} documents")
-
-# -----------------------------
-# Clear collection (optional)
-# -----------------------------
 try:
-    client.delete_collection(COLLECTION_NAME)
-except Exception:
-    pass
 
-vectorstore = Chroma(
-    client=client,
-    collection_name=COLLECTION_NAME,
-    embedding_function=embeddings,
-)
+    df = pd.read_csv(CSV_FILE).fillna("")
+    print(f"Loaded {len(df)} rows")
+    documents = []
+    for _, row in df.iterrows():
+        text = ", ".join(
+            f"{col}: {row[col]}"
+            for col in df.columns
+            if str(row[col]).strip() != ""
+        )
 
-# -----------------------------
-# Insert
-# -----------------------------
-vectorstore.add_documents(documents)
-print(f"Ingested {len(documents)} rows into '{COLLECTION_NAME}'")
+        metadata = {
+            "normalized_name": row["normalized_name"].strip().lower(),
+            "biomarker_name": row["biomarker_name"].strip().lower(),
+            "panel_name": row["panel_name"].strip().lower(),
+            "demographic_group": row["demographic_group"].strip().lower(),
+        }
+
+        documents.append(
+            Document(
+                page_content=text,
+                metadata=metadata,
+            )
+        )
+
+    try:
+        client.delete_collection(COLLECTION_NAME)
+    except:
+        pass
+
+    vectorstore = Chroma(
+        client=client,
+        collection_name=COLLECTION_NAME,
+        embedding_function=embeddings,
+    )
+
+    vectorstore.add_documents(documents)
+
+    # # Extract the full file name (with extension)
+    # print(file_path.name)
+    # # Output: ingest_log.jsonl
+
+    # # Extract ONLY the file name (WITHOUT the extension)
+    # print(file_path.stem)
+    log_ingestion(
+        document_name=CSV_FILE.name,
+        status="SUCCESS",
+        rows_processed=len(documents),
+        collection_name=COLLECTION_NAME,
+    )
+
+except Exception as e:
+
+    log_ingestion(
+        document_name=CSV_FILE,
+        status="FAILED",
+        rows_processed=0,
+        collection_name=COLLECTION_NAME,
+        error=str(e),
+    )
+
+    raise
