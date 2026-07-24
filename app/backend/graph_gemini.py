@@ -18,13 +18,12 @@ from langchain_ollama import OllamaEmbeddings
 
 load_dotenv()
 
-print("Initializing Ollama Embeddings and ChromaDB client...")
+#print("Initializing Ollama Embeddings and ChromaDB client...")
 CHROMA_HOST = os.getenv("CHROMA_HOST", "localhost")
 CHROMA_PORT = int(os.getenv("CHROMA_PORT", 8001))
 OLLAMA_URL = os.getenv("OLLAMA_URL", "http://localhost:11434")
 GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
 
-# print("Initializing Ollama Embeddings and ChromaDB client...")
 print(f"CHROMA_HOST: {CHROMA_HOST}, CHROMA_PORT: {CHROMA_PORT}, OLLAMA_URL: {OLLAMA_URL}")
 # 1. Define the State
 class AgentState(TypedDict):
@@ -47,7 +46,7 @@ client = chromadb.HttpClient(host=CHROMA_HOST, port=CHROMA_PORT)
 # chroma_client2 = Chroma(client=client, collection_name="local_rag3", embedding_function=embeddings)
 # # collection = client.get_collection("local_rag")
 # # data = collection.get(include=["documents"])
-# # print("ChromaDB collection 'local_rag' documents:", data["documents"])
+# # #print("ChromaDB collection 'local_rag' documents:", data["documents"])
 
 # #chroma retriever
 
@@ -58,16 +57,16 @@ client = chromadb.HttpClient(host=CHROMA_HOST, port=CHROMA_PORT)
 # chroma_retriever2 = chroma_client2.as_retriever(search_kwargs={"k": 8})
 # multi_collection_retriever = MergerRetriever(retrievers=[chroma_retriever1, chroma_retriever2])
 
-# print("Chroma retriever initialized with k=8: ")
+# #print("Chroma retriever initialized with k=8: ")
 # #bm25 retriever for 2 collection
 # # bm25_documents = [Document(page_content=str(text)) if "Blood Test Normal Range" not in str(text) else Document(page_content=str(text[100:])) for text in (chroma_client._collection.get(include=["documents"])["documents"] for chroma_client in [chroma_client1, chroma_client2])]
 # bm25_documents = [Document(page_content=doc) if "Blood Test Normal Range" not in doc else Document(page_content=doc[100:])  for chroma in [chroma_client1, chroma_client2] for doc in chroma._collection.get(include=["documents"])["documents"]]
-# print("bm25 initialized with documents from both collections.", len(bm25_documents))
+# #print("bm25 initialized with documents from both collections.", len(bm25_documents))
 # #bm25 for 1 collecion
 # # bm25_documents = [Document(page_content=text) if "Blood Test Normal Range" not in text else Document(page_content=text[100:]) for text in chroma_client._collection.get(include=["documents"])["documents"]]
 # bm25_retriever = BM25Retriever.from_documents(bm25_documents)
 # bm25_retriever.k = 8
-# print("BM25 retriever initialized with k=8 and Chroma retriever with k=8.")
+# #print("BM25 retriever initialized with k=8 and Chroma retriever with k=8.")
 # # Combine the two retrievers into an ensemble retriever
 # ensemble_retriever = EnsembleRetriever(
 #     # retrievers=[bm25_retriever, chroma_retriever],                    #for 1 collection
@@ -85,7 +84,7 @@ def extract_tables_and_text(pdf_path: str) -> str:
     """
     pages = []
     with pdfplumber.open(pdf_path) as pdf:
-        print(f"Reading {len(pdf.pages)} pages...")
+        #print(f"Reading {len(pdf.pages)} pages...")
         for page_no, page in enumerate(pdf.pages, start=1):
             page_content = []
             # -------------------------
@@ -131,9 +130,9 @@ def extract_labs_node(state: AgentState):
         extracted_data -> Python list
     """
 
-    print("=" * 60)
-    print("STEP 1 : Extracting laboratory values...")
-    print("=" * 60)
+    #print("=" * 60)
+    #print("STEP 1 : Extracting laboratory values...")
+    #print("=" * 60)
 
     report = state["report_text"]
 
@@ -210,13 +209,13 @@ Clinical Report:
 
     except Exception as e:
 
-        print(text)
+        #print(text)
 
         raise Exception(
             f"Invalid JSON returned by Gemini\n{e}"
         )
 
-    print(f"Extracted {len(labs)} laboratory tests.", labs)
+    #print(f"Extracted {len(labs)} laboratory tests.", labs)
 
     return {
 
@@ -237,9 +236,9 @@ def retrieve_guidelines_node(state: AgentState):
         guideline_context -> list[str]
     """
 
-    print("=" * 60)
-    print("STEP 2 : Retrieving Guidelines...")
-    print("=" * 60)
+    #print("=" * 60)
+    #print("STEP 2 : Retrieving Guidelines...")
+    #print("=" * 60)
 
     labs = state["extracted_data"]
     all_documents = []
@@ -247,8 +246,8 @@ def retrieve_guidelines_node(state: AgentState):
     # ---------------------------------------
     # Deduplicate labs before querying
     # ---------------------------------------
-    print(type(labs[0]["test_name"]))
-    print((labs[0]["test_name"]))
+    #print(type(labs[0]["test_name"]))
+    #print((labs[0]["test_name"]))
     
     unique_tests = {
         lab["test_name"].strip().lower(): lab["test_name"]
@@ -261,11 +260,11 @@ def retrieve_guidelines_node(state: AgentState):
 
     for _, test_name in unique_tests.items():
         query = f"{test_name}"
-        print(f"Searching: {query}")
+        #print(f"Searching: {query}")
         docs = ensemble_retriever.invoke(query)
         all_documents.extend(docs)
 
-    print(f"\nRetrieved {len(all_documents)} documents")
+    #print(f"\nRetrieved {len(all_documents)} documents")
 
     # ---------------------------------------
     # Remove duplicate documents
@@ -279,7 +278,7 @@ def retrieve_guidelines_node(state: AgentState):
 
     documents = list(unique_docs.values())
 
-    print(f"After deduplication : {len(documents)}")
+    #print(f"After deduplication : {len(documents)}")
 
     # ---------------------------------------
     # FlashRank
@@ -293,7 +292,7 @@ def retrieve_guidelines_node(state: AgentState):
 
     )
 
-    print(f"After reranking : {len(reranked)}")
+    #print(f"After reranking : {len(reranked)}")
 
     # ---------------------------------------
     # Keep Top Results
@@ -315,7 +314,7 @@ def retrieve_guidelines_node(state: AgentState):
 
         )
 
-    print(f"Final Context : {len(guideline_context)} documents {guideline_context}")
+    #print(f"Final Context : {len(guideline_context)} documents {guideline_context}")
 
     return {
 
@@ -335,9 +334,9 @@ def clinical_reasoning_node(state: AgentState):
         final_plan
     """
 
-    print("=" * 60)
-    print("STEP 3 : Clinical Reasoning...")
-    print("=" * 60)
+    #print("=" * 60)
+    #print("STEP 3 : Clinical Reasoning...")
+    #print("=" * 60)
 
     labs = state["extracted_data"]
 
@@ -442,29 +441,29 @@ status = Unknown
 
     except Exception as e:
 
-        print(text)
+        #print(text)
 
         raise Exception(
             f"Gemini returned invalid JSON\n{e}"
         )
 
-    print(f"Generated {len(final_plan)} assessments.")
+    #print(f"Generated {len(final_plan)} assessments.")
     return {"final_plan": final_plan}
 
 # --- GRAPH CONSTRUCTION ---
-# print("extracted node:", extract_labs_node(agent_state := AgentState(report_text="Patient has elevated HbA1c levels.", extracted_data="", guideline_context="", final_plan="")))
+# #print("extracted node:", extract_labs_node(agent_state := AgentState(report_text="Patient has elevated HbA1c levels.", extracted_data="", guideline_context="", final_plan="")))
 workflow = StateGraph(AgentState)
-print("Building the clinical analysis workflow...")
+#print("Building the clinical analysis workflow...")
 
 # Add Nodes
 workflow.add_node("extractor", extract_labs_node)
-print("Added extractor node.")
+#print("Added extractor node.")
 # workflow.add_node("optimizer", optimize_extract_labs_node)
-# print("Added optimizer node.")
+# #print("Added optimizer node.")
 # workflow.add_node("researcher", retrieve_guidelines_node)
-# print("Added researcher node.")
+# #print("Added researcher node.")
 # workflow.add_node("writer", clinical_reasoning_node)
-# print("Added writer node.")
+# #print("Added writer node.")
 
 # Define Edges (The flow)
 
