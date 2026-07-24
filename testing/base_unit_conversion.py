@@ -59,10 +59,10 @@ def normalize_unit(unit):
     return mapping.get(unit, unit)
 
 def convert(value, unit):
-    print(type(value))
+    # print(type(value))
     unit = normalize_unit(unit)
     value=float(value)
-    print(type(value))
+    # print(type(value))
     if unit not in UNIT_CONVERSION:
         return value, unit
 
@@ -70,23 +70,27 @@ def convert(value, unit):
 
     return value * factor, base_unit
 
-def update_unit(content,lab):
+def update_unit_with_status(content,lab):
     # Parse the string
     parts = {}
-
+    status=""
+    lower=lab["lower_limit"]
+    upper=lab["upper_limit"]
+    print("inside update function")
+    # print(lab)
     for item in content.split(", "):
         key, value = item.split(": ", 1)
         parts[key] = value
-
+    # print("checking normalized condition")
     # Normalize if possible
     if {"lower_limit", "upper_limit", "unit"} <= parts.keys():
 
         unit = normalize_unit(parts["unit"])
-        print("normalized unit")
+        # print("normalized unit")
         if unit in UNIT_CONVERSION:
 
             base_unit, factor = UNIT_CONVERSION[unit]
-            print("converting unit and limits")
+            # print("converting unit and limits")
             parts["lower_limit"] = str(
                 float(parts["lower_limit"]) * factor
             )
@@ -97,7 +101,7 @@ def update_unit(content,lab):
 
             
             parts["unit"] = base_unit
-            print("done")
+            # print(f"done {parts["lower_limit"]}, {parts["upper_limit"]}")
             # Convert critical limits if present
             if "critical_low" in parts:
                 parts["critical_low"] = str(
@@ -111,17 +115,29 @@ def update_unit(content,lab):
             print(f"biomarker name : {parts["biomarker_name"]} and lab name: {lab["lab_name"]}")
             token_ratio = fuzz.token_sort_ratio(parts["biomarker_name"],lab["lab_name"])
             print(token_ratio)
-            if token_ratio>90:
-                if float(parts["lower_limit"])<=lab["value"] and float(parts["upper_limit"])>=lab["value"]:
-                    parts["status"]="normal"
-                elif float(parts["lower_limit"])>lab["value"]:
-                    parts["status"]="low"
-                elif float(parts["upper_limit"])<lab["value"]:
-                    parts["status"]="high"
-                else:
-                    parts["status"]="unknown"
-                print(parts["status"])
-
+            print(lab["unit"],base_unit)
+            
+            print("inside else")
+            lower=float(lab["lower_limit"]) * factor
+            print(lab["lower_limit"])
+            upper=float(lab["upper_limit"]) * factor
+            lab["unit"]=base_unit
+            print("lab value :", lab["value"])
+            print("lower limit: ",lab["lower_limit"])
+            if (float(parts["lower_limit"])<=lab["value"] and float(parts["upper_limit"])>=lab["value"]) or (lower<=lab["value"] and upper>=lab["value"]) :
+                    status="normal"
+                    if (float(parts["lower_limit"])<=lab["value"] and float(parts["upper_limit"])>=lab["value"]) :
+                         lower=float(parts["lower_limit"])
+                         upper=float(parts["upper_limit"])
+            elif float(parts["lower_limit"])>lab["value"]:
+                    status="low"
+            elif float(parts["upper_limit"])<lab["value"]:
+                    status="high"
+            else:
+                    status="unknown"
+                
+            print(status)
         else:
-            parts["status"]="unknown"
-    return ", ".join(f"{k}: {v}" for k, v in parts.items())
+            status="unknown"
+    return ", ".join(f"{k}: {v}" for k, v in parts.items()), status, lower, upper
+
