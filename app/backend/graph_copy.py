@@ -9,10 +9,10 @@ from langchain_core.documents import Document
 from langchain_core.messages import SystemMessage, HumanMessage
 from langchain_ollama import ChatOllama
 from langchain_chroma import Chroma
-# from langchain_community.retrievers import BM25Retriever
-# from langchain_classic.retrievers import (EnsembleRetriever,MergerRetriever)
 from langchain_community.document_compressors import FlashrankRerank
 from langchain_ollama import OllamaEmbeddings
+from rapidfuzz import fuzz
+from testing.base_unit_conversion import convert,update_unit_with_status
 
 
 print("Initializing Ollama Embeddings and ChromaDB client...")
@@ -34,39 +34,14 @@ llm = ChatOllama(
     base_url=OLLAMA_URL,
     temperature=0,
     num_predict=2048,
-    # num_ctx=4096
+    num_ctx=4096,
+    format="json"
 )
 
 embeddings = OllamaEmbeddings(base_url=OLLAMA_URL, model="nomic-embed-text")
 client = chromadb.HttpClient(host=CHROMA_HOST, port=CHROMA_PORT)
-chroma_client = Chroma(client=client, collection_name="local_rag4", embedding_function=embeddings)
-# chroma_client1 = Chroma(client=client, collection_name="local_rag2", embedding_function=embeddings)
-# chroma_client2 = Chroma(client=client, collection_name="local_rag3", embedding_function=embeddings)
-# collection = client.get_collection("local_rag")
-# data = collection.get(include=["documents"])
-# print("ChromaDB collection 'local_rag' documents:", data["documents"])
+chroma_client = Chroma(client=client, collection_name="local_rag3", embedding_function=embeddings)
 
-#chroma retriever
-
-#if 1 collection
-
-#if 2 collections
-# chroma_retriever1 = chroma_client1.as_retriever(search_kwargs={"k": 8})
-# chroma_retriever2 = chroma_client2.as_retriever(search_kwargs={"k": 8})
-# multi_collection_retriever = MergerRetriever(retrievers=[chroma_retriever1, chroma_retriever2])
-
-
-
-# data = chroma_client._collection.get(
-#     include=["documents", "metadatas"]
-# )
-
-# # print("documents page content: ",data["documents"][:5])
-# # print("documents metadata: ", data["metadatas"][:5])
-
-
-#reranker
-reranker = FlashrankRerank(top_n=5)
 
 def extract_tables_and_text(pdf_path: str) -> str:
     """
@@ -127,6 +102,7 @@ def extract_labs_node(state: AgentState):
     print("=" * 60)
 
     report = state["report_text"]
+    # print(report)
 
     prompt = f"""
 You are an expert clinical laboratory extraction system.
@@ -141,10 +117,10 @@ Schema:
     {{
         "test_name": "",
         "value": null if not given,
-        "status/range": "" (status: good) or (range: 100 1000 or range: <500) if given
-        "unit": "",
-        "demographic_group": "either of (Adult (All),Adult Male, Adult Female, "" if unknown)",
-        "panel_name": "" such as CBC,CMP,Liver Function,Lipid,Vitamin
+        "lower_limit": <number or null>  (If >10, set to 10. If between 100 and 1000, set to 100 )
+        "upper_limit": <number or null>  (If <500, set to 500. If between 10 and 200, set to 200.)
+        "unit": ""
+        "status": "" (good or bad ) only if given else ""
     }}
 ]
 
@@ -165,14 +141,13 @@ Rules
 
 5. value must always be numeric.
 
-6. Do NOT include reference ranges.
-
-7. Return JSON only.
+6. Return JSON only.
 
 Patient Report:
 
 {report}
 """
+    print("after prompt")
 
     response = llm.invoke(
         [
@@ -183,56 +158,51 @@ Patient Report:
         ]
     )
 
-    if isinstance(response.content, list):
-        text = "".join(
-        block["text"] if isinstance(block, dict) else str(block)
-        for block in response.content
-    )
-    else:
-        text = response.content
+    # if isinstance(response.content["result"], list):
+    #     text = "".join(
+    #     block["text"] if isinstance(block, dict) else str(block)
+    #     for block in response.content
+    # )
+    # else:
+    #     text = response.content["result"]
 
-    text = text.strip()
+    # text = text.strip()
 
 
-    # Gemini sometimes wraps JSON
-    if text.startswith("```"):
+    # # Gemini sometimes wraps JSON
+    # if text.startswith("```"):
 
-        text = (
-            text
-            .replace("```json", "")
-            .replace("```", "")
-            .strip()
-        )
+    #     text = (
+    #         text
+    #         .replace("```json", "")
+    #         .replace("```", "")
+    #         .strip()
+    #     )
 
-    try:
+    # try:
 
-        labs = json.loads(text)
+    #     labs = json.loads(text)
 
-    except Exception as e:
+    # except Exception as e:
 
-        print(text)
+    #     print(text)
 
-        raise Exception(
-            f"Invalid JSON returned by Gemini\n{e}"
-        )
-
+    #     raise Exception(
+    #         f"Invalid JSON returned by Gemini\n{e}" )
+    print(response.content)
+    print(type(response.content))
+    # print(json.loads(response.content))
+    labs=next(iter(json.loads(response.content).values()))
+    # print(f"labs {labs} type: {type(labs)}")
     print(f"Extracted {len(labs)} laboratory tests type {type(labs)} and content.", labs)
-    
-    return {
-
-        "extracted_data": labs
-
-    }
+    for lab in labs:
+        lab["value"],lab["unit"]=convert(lab["value"],lab["unit"])
+    # print(labs)
+    return {"extracted_data": labs}
 
 def retrieve_guidelines_node(state: AgentState):
     """
     Retrieve guideline documents for each extracted laboratory test.
-
-    Uses:
-        Chroma
-
-    Returns:
-        guideline_context -> list[str]
     """
 
     print("=" * 60)
@@ -240,131 +210,109 @@ def retrieve_guidelines_node(state: AgentState):
     print("=" * 60)
 
     labs = state["extracted_data"]
-    print(len(labs))
-    if len(labs)==0:
-        return {"guideline_context": [{"content":"no data extracted so no guidelines can be retrieved"}]}
+
+    if not labs:
+        print("No data extracted")
+        return {"guideline_context": [{"content": "No data extracted so no guidelines can be retrieved"}]}
+
+    # ---------------------------------------
+    # Deduplicate lab names
+    # ---------------------------------------
+
+    unique_tests = {
+        lab["test_name"].strip().lower(): {
+            "lab_name": lab["test_name"],
+            "value": lab["value"],
+            "unit": lab["unit"],
+            "lower_limit": lab["lower_limit"],
+            "upper_limit": lab["upper_limit"],
+            "status": lab["status"]
+        }
+        for lab in labs
+        if lab.get("test_name")
+    }
+    print("="*10)
+    print(f"Unique tests: {list(unique_tests.values())}")
+    print("="*10)
+
+    # ---------------------------------------
+    # Create retriever (no filtering)
+    # ---------------------------------------
+
+    chroma_retriever = chroma_client.as_retriever(
+        search_kwargs={"k": 2}
+    )
+
     all_documents = []
 
     # ---------------------------------------
-    # Deduplicate labs before querying
-    # ---------------------------------------
-    print(type(labs[0]["test_name"]))
-    print((labs[0]["test_name"]))
-    # print((labs[0]["demographic_group"]))
-    print(labs[0]["demographic_group"] if labs[0]["demographic_group"] else "no demographic group" ) 
-    
-    unique_tests = {
-        lab["test_name"].strip().lower(): [lab["test_name"], lab["demographic_group"], lab["panel_name"]] 
-        for lab in labs
-    }
-    print("after unique test")
-    # ---------------------------------------
-    # Retrieve documents for each lab
+    # Retrieve documents
     # ---------------------------------------
 
-    for _, test in unique_tests.items():
-        print("inside for loop")
-        # 1. Start with the condition that is always present
-        filter_conditions = [
-            {"demographic_group": test[1].strip().lower()}
-        ]
-
-        # 2. Extract and check the panel_name condition safely
-        # (Handles if test doesn't have index 2, or if it is None / empty string)
-        panel_name = test[2].strip().lower() if len(test) > 2 and test[2] else None
-
-        if panel_name:
-            filter_conditions.append({"panel_name": panel_name})
-
-        # 3. Determine the final filter structure based on how many conditions we have
-        if len(filter_conditions) > 1:
-            final_filter = {"$and": filter_conditions}
-        else:
-            final_filter = filter_conditions[0]  # If only demographic_group is present
-
-        # 4. Pass the dynamically constructed filter to your retriever
-        chroma_retriever = chroma_client.as_retriever(
-            search_kwargs={
-                "filter": final_filter,
-                "k": 2
-            }
-        )
-
-        # chroma_retriever= chroma_client.as_retriever(
-        #     search_kwargs={
-        #         "filter": {
-        #             "$and": [
-        #                 {"panel_name": test[2].strip().lower()},
-        #                 {"demographic_group": test[1].strip().lower()}
-        #                 ]},
-        #                 "k": 2})
-
-        print("after chrom retriever initialized")
-        query = f"{test[0]}"
+    for test in unique_tests.values():
+        query = test["lab_name"]
         print(f"Searching: {query}")
         docs = chroma_retriever.invoke(query)
-        # all_documents.extend([docs])
-        all_documents.extend(docs)
-    print("checking condiion for 2nd loop")
-    if len(all_documents)==0:
-        for _, test in unique_tests.items():
-            print("inside 2nd for loop")
-            chroma_retriever = chroma_client.as_retriever(search_kwargs={"k": 2})
-            print("after chrom retriever initialized")
-            query = f"{test[0]}"
-            print(f"Searching: {query}")
-            docs = chroma_retriever.invoke(query)
-            all_documents.extend(docs)
+        all_documents.append(docs)
 
-    print("outside for loop")
-    print(f"\nRetrieved {len(all_documents)} documents")
-    if len(all_documents)==0:
-        if len(all_documents) == 0:
-            # Return a dictionary containing a list with one dictionary item
-            return {"guideline_context": [{"content": "No guidelines retrieved."}]}
+    if not all_documents:
+        return {
+            "guideline_context": [
+                {"content": "No guidelines retrieved."}
+            ]
+        }
 
+    print(f"Retrieved {len(all_documents)} documents")
+    # print("all docs: ",all_documents)
     # ---------------------------------------
-    # Remove duplicate documents
+    # Remove duplicates
     # ---------------------------------------
 
     unique_docs = {}
+    documents=[]
+    for lst in all_documents:
+        for doc in lst:
+            unique_docs[doc.page_content[:30]] = doc
+        documents.append(list(unique_docs.values()))
+        unique_docs={}
 
-    for doc in all_documents:
-            unique_docs[doc.page_content] = doc
 
-    documents = list(unique_docs.values())
-
-    print(f"After deduplication : {len(documents)} \n {documents}")
-
-    # ---------------------------------------
-    # FlashRank
-    # ---------------------------------------
-
-    # reranked = [reranker.compress_documents(
-    #     documents,
-    #     lab["test_name"]
-    #     )for lab in labs]
-
-    # print(f"After reranking : {len(reranked)}")
+    print(f"After deduplication: {len(documents)}")
 
     # ---------------------------------------
-    # Keep Top Results
+    # Build context
     # ---------------------------------------
-
-    # top_docs = [i[:3] for i in reranked]
-    top_docs= documents
-
+    # print("--"*10)
+    # print([i, (lab,lst)] for i,(lab,lst) in enumerate(zip(unique_tests.values(),documents)))
+    # print("--"*10)
     guideline_context = []
+    for i, (lab, lst) in enumerate(zip(unique_tests.values(), documents)):
+        # print(f"lst is: {lst} and j: {i}")  # Since j == i, we just use i
+        # print(f"lab is: {lab} and i: {i}")
+        
+        for doc in lst:
 
-    for doc in top_docs:
-        guideline_context.append(
-            {
-                "content": doc.page_content,
-                # "metadata": doc.metadata
-            }
-        )
+            print("metadata: ",doc.metadata)
+            print("doc: ", doc)
+            content,status,base_lower,base_upper=update_unit_with_status(doc.page_content,lab)
+            if status=="normal":
+                break
+                    # if lab["status"].strip().lower()=="good":
+                    #     lab["status"]="normal"
+                    # elif lab["status"].strip().lower()=="bad":
+                    #     lab["status"]="bad"
+                    # else:
+            lab["status"]=status
+            guideline_context.append(
+                        {
+                            "content": content,
+                            "lower":base_lower,
+                            "upper":base_upper,
+                            "for_lab": lab
+                        }
+                    )
 
-    print(f"Final Context : {len(guideline_context)} documents {guideline_context}")
+    print(f"Final Context: {len(guideline_context)} documents")
 
     return {
         "guideline_context": guideline_context
@@ -381,90 +329,138 @@ def clinical_reasoning_node(state: AgentState):
     Output:
         final_plan
     """
-
+    labs = state["extracted_data"]
+    print(len(labs))
+    if len(labs)==0:
+        print("no data extracted")
+        return {"final_plan": [{"content":"no data extracted so no guidelines can be retrieved"}]}
     print("=" * 60)
     print("STEP 3 : Clinical Reasoning...")
     print("=" * 60)
 
-    labs = state["extracted_data"]
     print("labs stored")
-    context = "\n\n".join(
-        doc["content"]
-        for doc in state["guideline_context"]
-    )
+    context1=state["guideline_context"]
+    context2=""
+    prompt=""
     print("before prompt")
-
+    # print(context1)
+        # print(doc)
+        # if doc["for_lab"]["status"]=="normal":
+        #     print("status is normal")
+        #     continue
+    context2 = "\n\n".join(f"Patient labs: {doc['for_lab']}\nwith guidelines: {doc['content']}" for doc in context1)
+    # print("status is",doc["for_lab"]["status"])
+        # if doc["for_lab"]["status"]=="unknown":
+    if len(context2)==0:
+        return {"final_plan": {"final_plan":"everything is normal", "specialist": None}}
     prompt = f"""
-You are an experienced clinical decision support assistant.
+You are a clinical decision support assistant.
 
-Patient laboratory values:
+The laboratory status has already been determined.
+Do NOT change or recalculate it.
 
-{json.dumps(labs, indent=2)}
+Task
 
-Clinical guideline context:
+If status is "High" or "Low":
+- Use the provided guideline.
+- Recommend the single most appropriate specialist.
+- Write a concise follow-up plan (50–100 words).
+- Do not diagnose diseases.
+- Do not invent information beyond the guideline.
 
-{context}
-
---------------------------------------------------
+If status is "Unknown":
+- No matching guideline was found.
+- Use the laboratory test, value, unit, panel, demographic group, and available context.
+- Recommend the most appropriate specialist.
+- Write a cautious follow-up plan.
+- Mention uncertainty when appropriate.
+- Do not diagnose diseases.
 
 Return ONLY valid JSON.
 
 Schema
 
-[
-  {{
-    "test_name":"",
-    "patient_value":0,
-    "unit":"",
-    "reference_range":"",
-    "status":"",
-    "specialist":"",
-    "plan":""
-  }}
-]
+{{
+  "test_name": "",
+  "patient_value": 0,
+  "unit": "",
+  "reference_range": "",
+  "status": "",
+  "specialist": "",
+  "plan": ""
+}}
 
---------------------------------------------------
+Input
 
-Rules
-
-1. Match each laboratory test with the guideline.
-
-2. Extract the correct reference range and critical range.
-
-3. Compare numerically.
-
-4. Status must be one of:
-
-Normal
-
-Low
-
-High
-
-Unknown
-
-5. If Normal
-
-specialist = "None"
-
-plan = "No action required."
-
-6. If abnormal
-
-recommend the most appropriate specialist.
-
-write a concise follow-up plan (50-100 words).
-
-7. If guideline is unavailable
-
-status = Unknown
-
-8. Never invent reference ranges.
-
-9. Return ONLY JSON.
+{context2}
 """
-    print("after prompt")
-    print(f"passing extracted data {state['extracted_data']} \nwith guideline context {state['guideline_context']}")
+#     prompt = f"""
+# You are an experienced clinical decision support assistant.
+
+# Extracted lab test along with its retrieved guidelines:
+
+# {context}
+
+# --------------------------------------------------
+
+# Return ONLY valid JSON.
+
+# Schema
+
+# [
+#   {{
+#     "test_name":"",
+#     "patient_value":0,
+#     "unit":"",
+#     "reference_range":"" (unit),
+#     "status":"",
+#     "specialist":"",
+#     "plan":""
+#   }}
+# ]
+
+
+# Rules
+
+# 1. Match each laboratory test with the guideline.
+
+# 2. Extract the correct reference range and critical range.
+
+# 3. Compare numerically.
+
+# 4. Status must be one of:
+
+# Normal
+
+# Low
+
+# High
+
+# Unknown
+
+# 5. If Normal
+
+# specialist = "None"
+
+# plan = "No action required."
+
+# 6. If abnormal
+
+# recommend the most appropriate specialist (eg. Hematologist, Cardiologists).
+
+# write a concise follow-up plan (50-100 words).
+
+# 7. If guideline is unavailable
+
+# status = Unknown
+
+# 8. Never invent reference ranges.
+
+# 9. Return ONLY JSON.
+# """
+    print("before passing prompt")
+    # print(f"passing extracted data {state['extracted_data']} \nwith guideline context {context2}")
+    # print("prompt is: ",prompt)
     response = llm.invoke(
         [
             SystemMessage(
@@ -473,31 +469,35 @@ status = Unknown
             HumanMessage(content=prompt)
         ]
     )
-    if isinstance(response.content, list):
-        text = "".join(
-        block["text"] if isinstance(block, dict) else str(block)
-        for block in response.content
-    )
-    else:
-        text = response.content
+    # if isinstance(response.content, list):
+    #     text = "".join(
+    #     block["text"] if isinstance(block, dict) else str(block)
+    #     for block in response.content
+    # )
+    # else:
+    #     text = response.content
 
-    text = text.strip()
-    if text.startswith("```"):
-        text = (text.replace("```json", "").replace("```", "").strip())
+    # text = text.strip()
+    # if text.startswith("```"):
+    #     text = (text.replace("```json", "").replace("```", "").strip())
 
-    try:
+    # try:
 
-        final_plan = json.loads(text)
+    #     final_plan = json.loads(text)
 
-    except Exception as e:
+    # except Exception as e:
 
-        print(text)
+    #     print(text)
 
-        raise Exception(
-            f"Gemini returned invalid JSON\n{e}"
-        )
+    #     raise Exception(
+    #         f"Gemini returned invalid JSON\n{e}"
+    #     )
+    print("after prompt")
+    # print(response.content)
+    final_plan=json.loads(response.content)
+    # final_plan=json.loads("{'a':'b','c':'d'}")
 
-    print(f"Generated {len(final_plan)} assessments.", final_plan)
+    # print(f"Generated {len(final_plan)} assessments.", final_plan)
     return {"final_plan": final_plan}
 
 # --- GRAPH CONSTRUCTION ---
