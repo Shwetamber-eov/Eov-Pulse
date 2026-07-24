@@ -1,16 +1,19 @@
 import csv
 import io
+from pathlib import Path
 
 # ==========================================================
 # Paste your raw data below
 # ==========================================================
-raw_medical_data = ""
+raw_medical_data = """"""
 
 
 # ==========================================================
 # Output CSV
 # ==========================================================
-output_filename = "thresholds_rag1.csv"
+ROOT = Path(__file__).resolve().parent.parent.parent
+
+output_filename = ROOT / "data" / "thresholds_rag2.csv"
 
 header = [
     "biomarker_id",

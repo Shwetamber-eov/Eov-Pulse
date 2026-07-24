@@ -17,7 +17,7 @@ CHROMA_HOST = os.getenv("CHROMA_HOST", "localhost")
 CHROMA_PORT = int(os.getenv("CHROMA_PORT", 8001))
 OLLAMA_URL = os.getenv("OLLAMA_URL", "http://localhost:11434")
 
-CSV_FILE = ROOT / "data" / "thresholds_rag1.csv"
+CSV_FILE = ROOT / "data" / "thresholds_rag2.csv"
 COLLECTION_NAME = "local_rag3"   #2 == table data
 
 # -----------------------------
@@ -47,10 +47,14 @@ try:
         )
 
         metadata = {
-            "normalized_name": row["normalized_name"].strip().lower(),
+            # "normalized_name": row["normalized_name"].strip().lower(),
             "biomarker_name": row["biomarker_name"].strip().lower(),
             "panel_name": row["panel_name"].strip().lower(),
             "demographic_group": row["demographic_group"].strip().lower(),
+            "lower_limit": row["lower_limit"],
+            "upper_limit": row["upper_limit"],
+            "unit": row["unit"].strip().lower()
+
         }
 
         documents.append(
@@ -60,10 +64,10 @@ try:
             )
         )
 
-    try:
-        client.delete_collection(COLLECTION_NAME)
-    except:
-        pass
+    # try:
+    #     client.delete_collection(COLLECTION_NAME)
+    # except:
+    #     pass
 
     vectorstore = Chroma(
         client=client,
