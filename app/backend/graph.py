@@ -1,23 +1,18 @@
 import os
+import json
+import re
 import pdfplumber
-from typing import TypedDict, List, Annotated
-from langchain_core.documents import Document
-from langgraph.graph import StateGraph, END
-from langchain_ollama import ChatOllama
-from langchain_core.messages import HumanMessage, SystemMessage
-# from langchain_community.embeddings import OllamaEmbeddings
 import chromadb
+from typing import TypedDict
+from langgraph.graph import StateGraph, END
+from langchain_core.documents import Document
+from langchain_core.messages import SystemMessage, HumanMessage
+from langchain_ollama import ChatOllama
 from langchain_chroma import Chroma
-from langchain_community.llms import Ollama
-from langchain_ollama import OllamaEmbeddings
-# 1. Imports from langchain-community (Requires: pip install langchain-community rank_bm25)
-from langchain_community.retrievers import BM25Retriever
-
-# 2. Imports from core langchain 
-from langchain_classic.retrievers import EnsembleRetriever, ContextualCompressionRetriever, MergerRetriever
-# The correct path for the document compressor
-from langchain_classic.retrievers.document_compressors import LLMChainExtractor
 from langchain_community.document_compressors import FlashrankRerank
+from langchain_ollama import OllamaEmbeddings
+from rapidfuzz import fuzz
+from testing.base_unit_conversion import convert,update_unit_with_status
 
 
 print("Initializing Ollama Embeddings and ChromaDB client...")
@@ -25,299 +20,322 @@ CHROMA_HOST = os.getenv("CHROMA_HOST", "localhost")
 CHROMA_PORT = int(os.getenv("CHROMA_PORT", 8001))
 OLLAMA_URL = os.getenv("OLLAMA_URL", "http://localhost:11434")
 
-# print("Initializing Ollama Embeddings and ChromaDB client...")
+# #print("Initializing Ollama Embeddings and ChromaDB client...")
 print(f"CHROMA_HOST: {CHROMA_HOST}, CHROMA_PORT: {CHROMA_PORT}, OLLAMA_URL: {OLLAMA_URL}")
 # 1. Define the State
 class AgentState(TypedDict):
-    report_text: str           # Raw text from the uploaded PDF
-    extracted_data: str        # Structured JSON-like lab results
-    # optimized_extracted_data: str  # Optimized search query
-    guideline_context: str     # Results found in your ChromaDB
-    # important_guidelines: str  # filter most relevant guidelines from guideline_context
-    final_plan: str            # The final referral/follow-up draft
+    report_text: str
+    extracted_data: list
+    guideline_context: list
+    final_plan: list
 
-# 2. Initialize the Model (Pointing to your Ollama Docker address)
-# Ensure you have 'llama3' pulled in your Ollama container
 llm = ChatOllama(
-    model="llama3", 
-    base_url="http://localhost:11434"
+    model="gemma3:12b",
+    base_url=OLLAMA_URL,
+    temperature=0,
+    num_predict=2048,
+    num_ctx=4096,
+    format="json"
 )
+
 embeddings = OllamaEmbeddings(base_url=OLLAMA_URL, model="nomic-embed-text")
 client = chromadb.HttpClient(host=CHROMA_HOST, port=CHROMA_PORT)
-chroma_client = Chroma(client=client, collection_name="local_rag", embedding_function=embeddings)
-# chroma_client1 = Chroma(client=client, collection_name="local_rag2", embedding_function=embeddings)
-# chroma_client2 = Chroma(client=client, collection_name="local_rag3", embedding_function=embeddings)
-collection = client.get_collection("local_rag")
-# data = collection.get(include=["documents"])
-# print("ChromaDB collection 'local_rag' documents:", data["documents"])
-
-#chroma retriever
-
-chroma_retriever= chroma_client.as_retriever(search_kwargs={"k": 8})
-# chroma_retriever1 = chroma_client1.as_retriever(search_kwargs={"k": 8})
-# chroma_retriever2 = chroma_client2.as_retriever(search_kwargs={"k": 8})
-
-# multi_collection_retriever = MergerRetriever(retrievers=[chroma_retriever1, chroma_retriever2])
-
-print("Chroma retriever initialized with k=8: ")
-#bm25 retriever
-# bm25_documents = [Document(page_content=text) if "Blood Test Normal Range" not in text else Document(page_content=text[100:]) for text in (chroma_client._collection.get(include=["documents"])["documents"] for chroma_client in [chroma_client1, chroma_client2])]
-bm25_documents = [Document(page_content=text) if "Blood Test Normal Range" not in text else Document(page_content=text[100:]) for text in chroma_client._collection.get(include=["documents"])["documents"]]
-bm25_retriever = BM25Retriever.from_documents(bm25_documents)
-bm25_retriever.k = 8
-print("BM25 retriever initialized with k=8 and Chroma retriever with k=8.")
-# Combine the two retrievers into an ensemble retriever
-ensemble_retriever = EnsembleRetriever(
-    retrievers=[bm25_retriever, chroma_retriever],
-    # retrievers=[bm25_retriever, multi_collection_retriever], 
-    weights=[0.6, 0.4])
-
-#reranker
-reranker = FlashrankRerank(top_n=5)
+chroma_client = Chroma(client=client, collection_name="local_rag3", embedding_function=embeddings)
 
 
-
-def extract_tables_and_text(pdf_path):
-    page_strings = []  # Use a list to collect pages temporarily
-    
+def extract_tables_and_text(pdf_path: str) -> str:
+    """
+    Extract text and tables from a PDF while preserving page boundaries.
+    Returns:
+        str: Complete report text.
+    """
+    pages = []
     with pdfplumber.open(pdf_path) as pdf:
-        for page in pdf.pages:
-            current_page_text = ""
-            
-            text = page.extract_text(layout=True) or page.extract_text() or ""
-            current_page_text += text
-            
+        for _, page in enumerate(pdf.pages, start=1):
+            page_content = []
+
+            # Extract Text
+            text = page.extract_text(layout=True)
+            if not text:
+                text = page.extract_text()
+            if text:
+                page_content.append(text.strip())
+
+            # Extract Tables
             tables = page.extract_tables()
             for table in tables:
                 for row in table:
-                    if any(row): current_page_text += f"\n{row}"
-            
-            # Append this isolated page string to our list
-            page_strings.append(current_page_text)
-            
-    # Join them seamlessly using your custom marker without a leading separator
-    return "\n\nnewwpagee\n\n".join(page_strings)
+                    if not row:
+                        continue
+                    cleaned_row = []
+                    for cell in row:
+                        if cell is None:
+                            cleaned_row.append("")
+                        else:
+                            cleaned_row.append(str(cell).replace("\n", " ").strip())
+                    page_content.append(" | ".join(cleaned_row))
 
+            # Save Page
+            page_text = "\n".join(page_content).strip()
+            if page_text:
+                pages.append(page_text)
 
+    return "\n\n<NEW_PAGE>\n\n".join(pages)
 
-# --- NODES ---
 
 def extract_labs_node(state: AgentState):
-    """Extracts only numerical lab values and key findings from the messy report."""
-    print("Extracting lab values from report...")
 
-    full_text = state["report_text"]
-    # print("\n full text : \n",full_text[:3000])
-    
-    # Split text into pages (adjust delimiter based on your PDF parser, e.g., '\x0c' or '\n--- Page')
-    # --- When you call it elsewhere in your code ---
-    pages = full_text.split('\n\nnewwpagee\n\n')    
-    # Define how many pages to send at once
-    chunk_size = 7 
-    all_responses = []
-    
-    # Process the document in small page chunks
-    for i in range(0, len(pages), chunk_size):
-        chunk_text = "".join(pages[i:i + chunk_size]).strip()
-        
-        if not chunk_text:
-            continue
-        
-        # print("Report text preview:", state['report_text'] + "...")
-        prompt = f"""
-<|begin_of_text|><|start_header_id|>system<|end_header_id|>
-You are a medical data extractor. 
-Your sole task is to extract lab values (e.g., HbA1c, LDL) from the provided text.
+    """
+    Gemini extracts all laboratory values from the report.
 
-Strict Constraints:
-1. Extract ONLY the lab name, value, and unit.
-2. Format each extraction exactly as: Lab Name: Value (Unit)
-3. Do not include any introductory text, explanatory text, or markdown code blocks (like ```).
-4. Ignore all other conversational or medical noise.
-5. If the input contains no valid lab values, return an empty string.
-<|eot_id|><|start_header_id|>user<|end_header_id|>
-Extract the lab values from the following report:
+    Output:
+        extracted_data -> Python list
+    """
 
-REPORT:
-{chunk_text}
+    report = state["report_text"]
 
-OUTPUT FORMAT:
-Lab Name: Value (Unit)
-<|eot_id|><|start_header_id|>assistant<|end_header_id|>
+    prompt = f"""
+You are an expert clinical laboratory extraction system.
+
+Your job is ONLY to extract laboratory measurements.
+
+Return ONLY valid JSON.
+
+Schema:
+
+[
+    {{
+        "test_name": "",
+        "value": null if not given,
+        "lower_limit": <number or null>  (If >10, set to 10. If between 100 and 1000, set to 100 )
+        "upper_limit": <number or null>  (If <500, set to 500. If between 10 and 200, set to 200.)
+        "unit": ""
+        "status": "" (good or bad ) only if given else ""
+    }}
+]
+
+Rules
+
+1. Extract every laboratory test.
+2. do not assume lab test if not mentioned
+3. Ignore:
+   - Diagnoses
+   - Clinical notes
+   - Medications
+   - Doctor comments
+   - Recommendations
+   - Symptoms
+   - Patient history
+
+4. Keep original units.
+
+5. value must always be numeric.
+
+6. Return JSON only.
+
+Patient Report:
+
+{report}
 """
-        response = llm.invoke(prompt)
-        all_responses.append(response.content)
-    
-    # Combine all findings into a single structured string
-    final_findings = "\n\n".join(all_responses)
 
-    # response = llm.invoke(prompt)
-    print("Extracted lab values:\n\n", all_responses)
-    return {"extracted_data": final_findings}
-    # return {"extracted_data": response.content}
+    response = llm.invoke(
+        [
+            SystemMessage(
+                content="You extract laboratory values."
+            ),
+            HumanMessage(content=prompt)
+        ]
+    )
 
-# def optimize_extract_labs_node(state: AgentState):
-#     """optimize the extracted lab values for better search results."""
-#     print("Optimizing extracted lab values...")
-#     prompt = f"""
-# <|begin_of_text|><|start_header_id|>system<|end_header_id|>
-# You are an expert medical search optimizer. Your task is to extract important medical keywords and concepts from patient data to create an optimized search query.
+    labs=next(iter(json.loads(response.content).values()))
+    for lab in labs:
+        lab["value"],lab["unit"]=convert(lab["value"],lab["unit"])
+    return {"extracted_data": labs}
 
-# CRITICAL RULES:
-# 1. Extract ONLY core medical conditions, specific deficiencies, organ-system baselines, and diagnostic domains.
-# 2. DO NOT include any numerical values, raw numbers, scores, percentages, ranges, or units of measurement.
-# 3. Translate numeric abnormalities into concise qualitative medical concepts (e.g., replace "Hb 8 g/dL" with "severe anemia").
-# 4. Filter out ALL conversational grammar, structural filler, and introductory/explanatory phrases (e.g., remove "This query evaluates...", "Guidelines for...", "Patients demonstrating...").
-# 5. Output ONLY the condensed medical keywords separated by commas or semi-colons. Do not include markdown formatting, brackets, or quotation marks.
-# <|eot_id|><|start_header_id|>user<|end_header_id|>
-# Based on the following extracted patient report details, output a zero-noise, high-density keyword search query for WHO diagnostic guidelines and nutrient requirements. Follow all system rules strictly.
-
-# Extracted Details:
-# \"\"\"
-# {state['extracted_data']}
-# \"\"\"
-
-# Optimized Search Query:<|eot_id|><|start_header_id|>assistant<|end_header_id|>
-# """
-
-#     response = llm.invoke(prompt)
-#     print("optimized Extracted lab values:", response.content)
-#     return {"optimized_extracted_data": response.content}
-
-def search_chroma_node(state: AgentState):
+def retrieve_guidelines_node(state: AgentState):
     """
-    This is where you bridge to your existing RAG.
-    For now, we simulate the tool call. You will replace the 'retriever' 
-    call with your specific ChromaDB tool.
+    Retrieve guideline documents for each extracted laboratory test.
     """
-    print("Searching ChromaDB for relevant guidelines...")
-    # 1. Take the extracted lab value (e.g., HbA1c: 8.5)
-    # query = f"{state['optimized_extracted_data']}"
-    query = f"{state['extracted_data']}"
+    labs = state["extracted_data"]
 
-    # print("Querying ChromaDB with:", query)
+    if not labs:
+        print("No data extracted")
+        return {"guideline_context": [{"content": "No data extracted so no guidelines can be retrieved"}]}
+
+    # ---------------------------------------
+    # Deduplicate lab names
+    # ---------------------------------------
+
+    unique_tests = {
+        lab["test_name"].strip().lower(): {
+            "lab_name": lab["test_name"],
+            "value": lab["value"],
+            "unit": lab["unit"],
+            "lower_limit": lab["lower_limit"],
+            "upper_limit": lab["upper_limit"],
+            "status": lab["status"]
+        }
+        for lab in labs
+        if lab.get("test_name")
+    }
+
+    # ---------------------------------------
+    # Create retriever (no filtering)
+    # ---------------------------------------
+
+    chroma_retriever = chroma_client.as_retriever(
+        search_kwargs={"k": 2}
+    )
+
+    all_documents = []
+
+    # ---------------------------------------
+    # Retrieve documents
+    # ---------------------------------------
+
+    for test in unique_tests.values():
+        query = test["lab_name"]
+        print(f"Searching: {query}")
+        docs = chroma_retriever.invoke(query)
+        all_documents.append(docs)
+
+    if not all_documents:
+        return {
+            "guideline_context": [
+                {"content": "No guidelines retrieved."}
+            ]
+        }
+
+    #print(f"Retrieved {len(all_documents)} documents")
     
-    final_documents = ensemble_retriever.invoke(query)
+    # ---------------------------------------
+    # Remove duplicates
+    # ---------------------------------------
 
-    # Step 1: retrieve candidates
-    # docs = ensemble_retriever.invoke(query)
-    # Step 2: rerank (FAST)
-    reranked_docs = reranker.compress_documents(final_documents, query)
+    unique_docs = {}
+    documents=[]
+    for lst in all_documents:
+        for doc in lst:
+            unique_docs[doc.page_content[:30]] = doc
+        documents.append(list(unique_docs.values()))
+        unique_docs={}
 
-    print(f"Reranked to {len(reranked_docs)} docs")
 
-    # Step 3: take top results
-    docs= reranked_docs[:3]
+    #print(f"After deduplication: {len(documents)}")
 
-    # print(f"Retrieved {len(final_documents)} documents from ChromaDB after compression.")
-    #------------------------------------------------------------------#
-    # Limit to top 2 paragraphs for your final prompt
-    # docs = final_documents[:5]
-    # 3. Join the document content into one string for the next LLM node
-    retrieved_content = "\n".join([doc.page_content for doc in docs])
-    print("Retrieved guidelines:", retrieved_content[:100] + "...")
+    # ---------------------------------------
+    # Build context
+    # ---------------------------------------
+    
+    guideline_context = []
+    for (lab, lst) in zip(unique_tests.values(), documents):
+        for doc in lst:
+            content,status,base_lower,base_upper=update_unit_with_status(doc.page_content,lab)
+            if status=="normal":
+                break
+            lab["status"]=status
+            guideline_context.append(
+                        {
+                            "content": content,
+                            "lower":base_lower,
+                            "upper":base_upper,
+                            "for_lab": lab
+                        }
+                    )
 
-    # TODO: Connect this to your existing ChromaDB retrieval logic
-    # example_context = "WHO Threshold for HbA1c: >7.0 is Type 2 Diabetes. Action: Specialist Referral."
-    print("Filtering retrieved guidelines for relevance...")
-    prompt = f"""<|begin_of_text|><|start_header_id|>system<|end_header_id|>
+    print(f"Final Context: {len(guideline_context)} documents")
 
-You extract laboratory reference information.
+    return {"guideline_context": guideline_context}
 
-Rules:
-- Use ONLY the retrieved context.
-- Extract information ONLY for the requested test.
-- Ignore all other tests and unrelated text.
-- Do NOT interpret results.
-- Do NOT diagnose.
-- Return JSON only.
+def clinical_reasoning_node(state: AgentState):
+    """
+    Final Gemini reasoning.
 
-JSON:
+    Input:
+        extracted_data
+        guideline_context
+
+    Output:
+        final_plan
+    """
+    labs = state["extracted_data"]
+    if len(labs)==0:
+        return {"final_plan": [{"content":"no data extracted so no guidelines can be retrieved"}]}
+    context1=state["guideline_context"]
+    context2=""
+    prompt=""
+    context2 = "\n\n".join(f"Patient labs: {doc['for_lab']}\nwith guidelines: {doc['content']}" for doc in context1)
+
+    if len(context2)==0:
+        return {"final_plan": {"final_plan":"everything is normal", "specialist": None}}
+    prompt = f"""
+You are a clinical decision support assistant.
+
+The laboratory status has already been determined.
+Do NOT change or recalculate it.
+
+Task
+
+If status is "High" or "Low":
+- Use the provided guideline.
+- Recommend the single most appropriate specialist.
+- Write a concise follow-up plan (50–100 words).
+- Do not diagnose diseases.
+- Do not invent information beyond the guideline.
+
+If status is "Unknown":
+- No matching guideline was found.
+- Use the laboratory test, value, unit, panel, demographic group, and available context.
+- Recommend the most appropriate specialist.
+- Write a cautious follow-up plan.
+- Mention uncertainty when appropriate.
+- Do not diagnose diseases.
+
+Return ONLY valid JSON.
+
+Schema
+
 {{
   "test_name": "",
+  "patient_value": 0,
+  "unit": "",
   "reference_range": "",
-  "unit": ""
+  "status": "",
+  "specialist": "",
+  "plan": ""
 }}
 
-<|eot_id|><|start_header_id|>user<|end_header_id|>
+Input
 
-Lab Test:
-{state['extracted_data']}
-
-Retrieved Context:
-{retrieved_content}
-
-<|eot_id|><|start_header_id|>assistant<|end_header_id|>
+{context2}
 """
-    response = llm.invoke(prompt)
-    return {"guideline_context": response.content}
+    response = llm.invoke(
+        [
+            SystemMessage(
+                content="You are a medical clinical reasoning assistant."
+            ),
+            HumanMessage(content=prompt)
+        ]
+    )
+    final_plan=json.loads(response.content)
 
-
-def draft_plan_node(state: AgentState):
-    """Compares Labs vs Guidelines and drafts the final action."""
-    print("Drafting final plan...")
-    print(f"Comparing extracted data: {state['extracted_data']} \n with guidelines: {state['guideline_context']}")
-    prompt = f"""<|begin_of_text|><|start_header_id|>system<|end_header_id|>
-
-You are a clinical assistant.
-
-For each lab test:
-
-1. Read the patient value.
-2. Read the reference range.
-3. Compare numerically.
-4. If value < lower limit → Low.
-5. If value > upper limit → High.
-6. Otherwise → Normal.
-
-If every test is Normal, output exactly:
-Status: Normal. No action required.
-Otherwise output:
-Status: Abnormal
-Specialist Referral: <specialist>
-Plan: <brief follow-up>
-
-Return only the final answer.
-
-<|eot_id|><|start_header_id|>user<|end_header_id|>
-
-Patient Labs:
-{state['extracted_data']}
-
-Guidelines:
-{state['guideline_context']}
-
-<|eot_id|><|start_header_id|>assistant<|end_header_id|>"""
-
-    response = llm.invoke(prompt)
-    print("Drafted final plan:", response.content)
-    return {"final_plan": response.content}
+    return {"final_plan": final_plan}
 
 # --- GRAPH CONSTRUCTION ---
-# print("extracted node:", extract_labs_node(agent_state := AgentState(report_text="Patient has elevated HbA1c levels.", extracted_data="", guideline_context="", final_plan="")))
 workflow = StateGraph(AgentState)
 print("Building the clinical analysis workflow...")
 
 # Add Nodes
 workflow.add_node("extractor", extract_labs_node)
-print("Added extractor node.")
-# workflow.add_node("optimizer", optimize_extract_labs_node)
-# print("Added optimizer node.")
-workflow.add_node("researcher", search_chroma_node)
-print("Added researcher node.")
-workflow.add_node("writer", draft_plan_node)
-print("Added writer node.")
+workflow.add_node("researcher", retrieve_guidelines_node)
+workflow.add_node("writer", clinical_reasoning_node)
 
 # Define Edges (The flow)
 
 workflow.set_entry_point("extractor")
-# workflow.add_edge("extractor", "optimizer")
-# workflow.add_edge("optimizer", "researcher")
 workflow.add_edge("extractor", "researcher")
 workflow.add_edge("researcher", "writer")
 workflow.add_edge("writer", END)
 
 # Compile the Graph
 clinical_agent = workflow.compile()
-
-# clinical_agent.invoke({"report_text": extract_tables_and_text("Abhishek_health_report_1.pdf"), "extracted_data": "", "guideline_context": "", "final_plan": ""})
