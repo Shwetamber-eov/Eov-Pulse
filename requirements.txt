@@ -7,15 +7,18 @@ requests
 langchain-ollama      # Connects LangChain to your local Ollama
 langchain-chroma      # The local vector database engine
 langchain             # The core framework logic
+ollama                # Python client to manage model pulls/downloads
+openpyxl              # to read excel files
 pypdf                 # To read your PDF files
 pdfplumber            # To extract text and tables from PDFs
+pymupdf               #to extract text and font size from pdfs
 python-dotenv         # To manage environment variables (if needed)
-ollama                # Python client to manage model pulls/downloads
+reportlab             # to generate pdf
 fastapi               # To create the API server
 langchain_community
 langgraph               # For visualizing the RAG graph
+rapidfuzz               # for similarity between strings
 streamlit               # For creating a simple UI to interact with your RAG system
 streamlit-folium        # For displaying maps in the Streamlit UI 
-re                      # For regex-operations to clean and process text
 geopy                   # For calculating distances between locations
 spacy                   #Location extraction from user queries
