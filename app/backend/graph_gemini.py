@@ -9,11 +9,11 @@ from langgraph.graph import StateGraph, END
 from langchain_core.documents import Document
 from langchain_core.messages import SystemMessage, HumanMessage
 from langchain_google_genai import ChatGoogleGenerativeAI
-from langchain_google_genai import GoogleGenerativeAIEmbeddings
+# from langchain_google_genai import GoogleGenerativeAIEmbeddings
 from langchain_chroma import Chroma
-from langchain_community.retrievers import BM25Retriever
-from langchain_classic.retrievers import (EnsembleRetriever,MergerRetriever)
-from langchain_community.document_compressors import FlashrankRerank
+# from langchain_community.retrievers import BM25Retriever
+# from langchain_classic.retrievers import (EnsembleRetriever,MergerRetriever)
+# from langchain_community.document_compressors import FlashrankRerank
 from langchain_ollama import OllamaEmbeddings
 
 load_dotenv()
@@ -42,39 +42,6 @@ llm = ChatGoogleGenerativeAI(
 embeddings = OllamaEmbeddings(base_url=OLLAMA_URL, model="nomic-embed-text")
 client = chromadb.HttpClient(host=CHROMA_HOST, port=CHROMA_PORT)
 # # chroma_client = Chroma(client=client, collection_name="local_rag", embedding_function=embeddings)
-# chroma_client1 = Chroma(client=client, collection_name="local_rag2", embedding_function=embeddings)
-# chroma_client2 = Chroma(client=client, collection_name="local_rag3", embedding_function=embeddings)
-# # collection = client.get_collection("local_rag")
-# # data = collection.get(include=["documents"])
-# # #print("ChromaDB collection 'local_rag' documents:", data["documents"])
-
-# #chroma retriever
-
-# #if 1 collection
-# # chroma_retriever= chroma_client.as_retriever(search_kwargs={"k": 8})
-# #if 2 collections
-# chroma_retriever1 = chroma_client1.as_retriever(search_kwargs={"k": 8})
-# chroma_retriever2 = chroma_client2.as_retriever(search_kwargs={"k": 8})
-# multi_collection_retriever = MergerRetriever(retrievers=[chroma_retriever1, chroma_retriever2])
-
-# #print("Chroma retriever initialized with k=8: ")
-# #bm25 retriever for 2 collection
-# # bm25_documents = [Document(page_content=str(text)) if "Blood Test Normal Range" not in str(text) else Document(page_content=str(text[100:])) for text in (chroma_client._collection.get(include=["documents"])["documents"] for chroma_client in [chroma_client1, chroma_client2])]
-# bm25_documents = [Document(page_content=doc) if "Blood Test Normal Range" not in doc else Document(page_content=doc[100:])  for chroma in [chroma_client1, chroma_client2] for doc in chroma._collection.get(include=["documents"])["documents"]]
-# #print("bm25 initialized with documents from both collections.", len(bm25_documents))
-# #bm25 for 1 collecion
-# # bm25_documents = [Document(page_content=text) if "Blood Test Normal Range" not in text else Document(page_content=text[100:]) for text in chroma_client._collection.get(include=["documents"])["documents"]]
-# bm25_retriever = BM25Retriever.from_documents(bm25_documents)
-# bm25_retriever.k = 8
-# #print("BM25 retriever initialized with k=8 and Chroma retriever with k=8.")
-# # Combine the two retrievers into an ensemble retriever
-# ensemble_retriever = EnsembleRetriever(
-#     # retrievers=[bm25_retriever, chroma_retriever],                    #for 1 collection
-#     retrievers=[bm25_retriever, multi_collection_retriever],            #for 2 collections
-#     weights=[0.6, 0.4])
-
-# #reranker
-# reranker = FlashrankRerank(top_n=5)
 
 def extract_tables_and_text(pdf_path: str) -> str:
     """
@@ -153,6 +120,7 @@ Rules:
 - Keep laboratory values and units exactly as written.
 - Use numeric values only. If a value is missing, use null.
 - Do not invent laboratory values, reference ranges, or diagnoses.
+- Refer official guidelines.
 - Base the summary, specialist recommendation, and follow-up plan only on information present in the report.
 - If no specialist referral is indicated, set specialist to "None".
 - If the report does not contain enough information for a recommendation, state this in the follow-up plan.
@@ -164,7 +132,8 @@ Schema:
 {{
   "summary": "",
   "specialist": "",
-  "follow_up_plan": ""
+  "follow_up_plan": "",
+  "reference_guidelines": ""
 }}
 ]
 
@@ -219,7 +188,7 @@ Clinical Report:
 
     return {
 
-        "final_plan": labs
+        "extracted_data": labs
 
     }
 
@@ -235,87 +204,118 @@ def retrieve_guidelines_node(state: AgentState):
     Returns:
         guideline_context -> list[str]
     """
-
-    #print("=" * 60)
-    #print("STEP 2 : Retrieving Guidelines...")
-    #print("=" * 60)
-
     labs = state["extracted_data"]
-    all_documents = []
 
-    # ---------------------------------------
-    # Deduplicate labs before querying
-    # ---------------------------------------
-    #print(type(labs[0]["test_name"]))
-    #print((labs[0]["test_name"]))
+    # print(labs)
+
+    try:
+        raw_guidelines = labs[0].get("reference_guidelines")
+
+        # Normalize to list
+        if raw_guidelines is None:
+            raw_guidelines = []
+        elif isinstance(raw_guidelines, str):
+            raw_guidelines = [raw_guidelines]
+
+    except (IndexError, AttributeError):
+        raw_guidelines = []
+
+    guideline_context = [
+        item.strip()
+        for item in raw_guidelines
+        if item and item.strip().lower() not in {
+            "",
+            "none",
+            "n/a",
+            "no action required",
+        }
+    ]
+
+    if not guideline_context:
+        print("No valid reference guidelines found.")
+    else:
+        print(f"Loaded {len(guideline_context)} valid guidelines.")
+        print(guideline_context)
+
+    # #print("=" * 60)
+    # #print("STEP 2 : Retrieving Guidelines...")
+    # #print("=" * 60)
+
+    # all_documents = []
+
+    # # ---------------------------------------
+    # # Deduplicate labs before querying
+    # # ---------------------------------------
+    # #print(type(labs[0]["test_name"]))
+    # #print((labs[0]["test_name"]))
     
-    unique_tests = {
-        lab["test_name"].strip().lower(): lab["test_name"]
-        for lab in labs
-    }
+    # unique_tests = {
+    #     lab["test_name"].strip().lower(): lab["test_name"]
+    #     for lab in labs
+    # }
 
-    # ---------------------------------------
-    # Retrieve documents for each lab
-    # ---------------------------------------
+    # # ---------------------------------------
+    # # Retrieve documents for each lab
+    # # ---------------------------------------
 
-    for _, test_name in unique_tests.items():
-        query = f"{test_name}"
-        #print(f"Searching: {query}")
-        docs = ensemble_retriever.invoke(query)
-        all_documents.extend(docs)
+    # for _, test_name in unique_tests.items():
+    #     query = f"{test_name}"
+    #     #print(f"Searching: {query}")
+    #     docs = ensemble_retriever.invoke(query)
+    #     all_documents.extend(docs)
 
-    #print(f"\nRetrieved {len(all_documents)} documents")
+    # #print(f"\nRetrieved {len(all_documents)} documents")
 
-    # ---------------------------------------
-    # Remove duplicate documents
-    # ---------------------------------------
+    # # ---------------------------------------
+    # # Remove duplicate documents
+    # # ---------------------------------------
 
-    unique_docs = {}
+    # unique_docs = {}
 
-    for doc in all_documents:
+    # for doc in all_documents:
 
-        unique_docs[doc.page_content] = doc
+    #     unique_docs[doc.page_content] = doc
 
-    documents = list(unique_docs.values())
+    # documents = list(unique_docs.values())
 
-    #print(f"After deduplication : {len(documents)}")
+    # #print(f"After deduplication : {len(documents)}")
 
-    # ---------------------------------------
-    # FlashRank
-    # ---------------------------------------
+    # # ---------------------------------------
+    # # FlashRank
+    # # ---------------------------------------
 
-    reranked = reranker.compress_documents(
+    # reranked = reranker.compress_documents(
 
-        documents,
+    #     documents,
 
-        json.dumps(labs)
+    #     json.dumps(labs)
 
-    )
+    # )
 
-    #print(f"After reranking : {len(reranked)}")
+    # #print(f"After reranking : {len(reranked)}")
 
-    # ---------------------------------------
-    # Keep Top Results
-    # ---------------------------------------
+    # # ---------------------------------------
+    # # Keep Top Results
+    # # ---------------------------------------
 
-    top_docs = reranked[:5]
+    # top_docs = reranked[:5]
 
-    guideline_context = []
+    # guideline_context = []
 
-    for doc in top_docs:
+    # for doc in top_docs:
 
-        guideline_context.append(
+    #     guideline_context.append(
 
-            {
-                "content": doc.page_content,
+    #         {
+    #             "content": doc.page_content,
 
-                # "metadata": doc.metadata
-            }
+    #             # "metadata": doc.metadata
+    #         }
 
-        )
+    #     )
 
-    #print(f"Final Context : {len(guideline_context)} documents {guideline_context}")
-
+    # #print(f"Final Context : {len(guideline_context)} documents {guideline_context}")
+    print("guideline context :", guideline_context)
     return {
 
         "guideline_context": guideline_context
@@ -338,114 +338,116 @@ def clinical_reasoning_node(state: AgentState):
     #print("STEP 3 : Clinical Reasoning...")
     #print("=" * 60)
 
-    labs = state["extracted_data"]
+    extracted_data = state["extracted_data"]
+    print(extracted_data)
+    final_plan=extracted_data[0]
+    print(final_plan)
+#     context = "\n\n".join(
+#         doc["content"]
+#         for doc in state["guideline_context"]
+#     )
 
-    context = "\n\n".join(
-        doc["content"]
-        for doc in state["guideline_context"]
-    )
+#     prompt = f"""
+# You are an experienced clinical decision support assistant.
 
-    prompt = f"""
-You are an experienced clinical decision support assistant.
+# Patient laboratory values:
 
-Patient laboratory values:
+# {json.dumps(labs, indent=2)}
 
-{json.dumps(labs, indent=2)}
+# Clinical guideline context:
 
-Clinical guideline context:
+# {context}
 
-{context}
+# --------------------------------------------------
 
---------------------------------------------------
+# Return ONLY valid JSON.
 
-Return ONLY valid JSON.
+# Schema
 
-Schema
+# [
+#   {{
+#     "test_name":"",
+#     "patient_value":0,
+#     "unit":"",
+#     "reference_range":"",
+#     "status":"",
+#     "specialist":"",
+#     "plan":""
+#   }}
+# ]
 
-[
-  {{
-    "test_name":"",
-    "patient_value":0,
-    "unit":"",
-    "reference_range":"",
-    "status":"",
-    "specialist":"",
-    "plan":""
-  }}
-]
+# --------------------------------------------------
 
---------------------------------------------------
+# Rules
 
-Rules
+# 1. Match each laboratory test with the guideline.
 
-1. Match each laboratory test with the guideline.
+# 2. Extract the correct reference range.
 
-2. Extract the correct reference range.
+# 3. Compare numerically.
 
-3. Compare numerically.
+# 4. Status must be one of:
 
-4. Status must be one of:
+# Normal
 
-Normal
+# Low
 
-Low
+# High
 
-High
+# Unknown
 
-Unknown
+# 5. If Normal
 
-5. If Normal
+# specialist = "None"
 
-specialist = "None"
+# plan = "No action required."
 
-plan = "No action required."
+# 6. If abnormal
 
-6. If abnormal
+# recommend the most appropriate specialist.
 
-recommend the most appropriate specialist.
+# write a concise follow-up plan.
 
-write a concise follow-up plan.
+# 7. If guideline is unavailable
 
-7. If guideline is unavailable
+# status = Unknown
 
-status = Unknown
+# 8. Never invent reference ranges.
 
-8. Never invent reference ranges.
+# 9. Return ONLY JSON.
+# """
 
-9. Return ONLY JSON.
-"""
+#     response = llm.invoke(
+#         [
+#             SystemMessage(
+#                 content="You are a medical clinical reasoning assistant."
+#             ),
+#             HumanMessage(content=prompt)
+#         ]
+#     )
+#     if isinstance(response.content, list):
+#         text = "".join(
+#         block["text"] if isinstance(block, dict) else str(block)
+#         for block in response.content
+#     )
+#     else:
+#         text = response.content
 
-    response = llm.invoke(
-        [
-            SystemMessage(
-                content="You are a medical clinical reasoning assistant."
-            ),
-            HumanMessage(content=prompt)
-        ]
-    )
-    if isinstance(response.content, list):
-        text = "".join(
-        block["text"] if isinstance(block, dict) else str(block)
-        for block in response.content
-    )
-    else:
-        text = response.content
+#     text = text.strip()
+#     if text.startswith("```"):
+#         text = (text.replace("```json", "").replace("```", "").strip())
 
-    text = text.strip()
-    if text.startswith("```"):
-        text = (text.replace("```json", "").replace("```", "").strip())
+#     try:
 
-    try:
+#         final_plan = json.loads(text)
 
-        final_plan = json.loads(text)
+#     except Exception as e:
 
-    except Exception as e:
+#         #print(text)
 
-        #print(text)
-
-        raise Exception(
-            f"Gemini returned invalid JSON\n{e}"
-        )
+#         raise Exception(
+#             f"Gemini returned invalid JSON\n{e}"
+#         )
 
     #print(f"Generated {len(final_plan)} assessments.")
     return {"final_plan": final_plan}
@@ -457,23 +459,23 @@ workflow = StateGraph(AgentState)
 
 # Add Nodes
 workflow.add_node("extractor", extract_labs_node)
-#print("Added extractor node.")
+print("Added extractor node.")
 # workflow.add_node("optimizer", optimize_extract_labs_node)
 # #print("Added optimizer node.")
-# workflow.add_node("researcher", retrieve_guidelines_node)
-# #print("Added researcher node.")
-# workflow.add_node("writer", clinical_reasoning_node)
-# #print("Added writer node.")
+workflow.add_node("researcher", retrieve_guidelines_node)
+print("Added researcher node.")
+workflow.add_node("writer", clinical_reasoning_node)
+print("Added writer node.")
 
 # Define Edges (The flow)
 
 workflow.set_entry_point("extractor")
 # workflow.add_edge("extractor", "optimizer")
 # workflow.add_edge("optimizer", "researcher")
-# workflow.add_edge("extractor", "researcher")
-# workflow.add_edge("researcher", "writer")
-# workflow.add_edge("writer", END)
-workflow.add_edge("extractor", END)
+workflow.add_edge("extractor", "researcher")
+workflow.add_edge("researcher", "writer")
+workflow.add_edge("writer", END)
+# workflow.add_edge("extractor", END)
 
 # Compile the Graph
 clinical_agent = workflow.compile()
