@@ -21,13 +21,13 @@ def run_all_tests():
     pdfs = sorted(Path(TEST_FOLDER).glob("*.pdf"))
 
     for pdf in pdfs:
-
+        print(pdf.name)
         start = time.time()
 
         try:
 
             extracted_text = extract_tables_and_text(str(pdf))
-
+            
             response = run_clinical_analysis(extracted_text)
 
             execution_time = round(time.time() - start, 2)

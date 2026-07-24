@@ -7,16 +7,18 @@ from datetime import datetime
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
-
-# OUTPUT = ROOT / "test_results" / "analysis_results2.csv"      #csv file to save the output test results
-# OUTPUT = ROOT / "test_results" / "analysis_results_gemini.csv"      #csv file to save the output test results
-# OUTPUT = ROOT / "test_results" / "analysis_results_gemma.csv"      #csv file to save the output test results
-# OUTPUT = ROOT / "test_results" / "analysis_results_phi.csv"      #csv file to save the output test results
-OUTPUT = ROOT / "test_results" / "analysis_results_chroma_only.csv"      #csv file to save the output test results
-
 from testing.runner import run_all_tests
 
-app = FastAPI(title="Clinical AI Test API")
+# OUTPUT = ROOT / "test_results" / "analysis_results2.csv"      #csv file to save the output test results
+OUTPUT = ROOT / "test_results" / "analysis_results_gemini.csv"      #csv file to save the output test results
+# OUTPUT = ROOT / "test_results" / "analysis_results_gemma.csv"      #csv file to save the output test results
+# OUTPUT = ROOT / "test_results" / "analysis_results_phi.csv"      #csv file to save the output test results
+# OUTPUT = ROOT / "test_results" / "analysis_results_chroma_only.csv"      #csv file to save the output test results
+# OUTPUT = ROOT / "test_results" / "analysis_results_llama3_1.csv"      #csv file to save the output test results
+# OUTPUT = ROOT / "test_results" / "analysis_results_simple.csv"      #csv file to save the output test results
+
+
+app = FastAPI(title="EOV-PULSE Test API")
 
 #function to save results in csv file
 def save_results(results):

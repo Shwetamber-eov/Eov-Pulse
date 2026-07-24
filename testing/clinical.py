@@ -1,11 +1,16 @@
 # import streamlit as st
 import pdfplumber
-from app.backend.graph import clinical_agent  # Importing your working graph
+from app.backend.graph_gemini import clinical_agent  # Importing your working graph
+# from app.backend.graph_gemma import clinical_agent  # Importing your working graph
+# from app.backend.graph_phi import clinical_agent  # Importing your working graph
+# from app.backend.graph_copy import clinical_agent  # Importing your working graph
+# from app.backend.graph_llama3_1 import clinical_agent  # Importing your working graph
+# from app.backend.graph_simple import clinical_agent  # Importing your working graph
 
 def extract_tables_and_text(pdf_path):
     complete_text=""
     with pdfplumber.open(pdf_path) as pdf:
-        for page_num, page in enumerate(pdf.pages):
+        for _, page in enumerate(pdf.pages):
             complete_text+="\n\nnewwpagee\n\n"
             
             # Extract plain text with layout preserved
