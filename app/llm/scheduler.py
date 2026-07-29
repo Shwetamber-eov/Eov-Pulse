@@ -260,93 +260,71 @@ class ModelScheduler:
     # ========================================================
     # Sync
     # ========================================================
-
-    def invoke(self, messages):
-
+    def invoke_with_model(self, model, messages):
         while True:
-
-            model = self.choose()
-
             try:
-                print("chose in invoke function :", model.config.name)
-                response = model.llm.invoke(messages)
 
+                print("Using :", model.config.name)
+                response = model.llm.invoke(messages)
                 tokens = self.extract_tokens(
                     model,
                     response,
                 )
-
                 model.record(tokens)
-
                 return response
 
             except Exception as e:
-
                 text = str(e).lower()
-
-                # 429
-
                 if (
                     "429" in text
                     or "rate" in text
                 ):
-
                     print(
-                        f"{model.config.name} "
-                        f"rate limited."
+                        f"{model.config.name} rate limited."
                     )
-
                     model.request_times.append(
                         time.time()
                     )
-
+                    # choose another available model
+                    model = self.choose()
                     continue
 
                 raise
+
+    def invoke(self, messages):
+        model = self.choose()
+        return self.invoke_with_model(
+            model,
+            messages,
+        )
 
     # ========================================================
     # Async
     # ========================================================
 
-    async def ainvoke(self, messages):
-
+    async def ainvoke_with_model(self,model,messages,):
         while True:
-
-            model = await self.choose_async()
-
             try:
-                print("chose in ainvoke function :", model.config.name)
-                response = await model.llm.ainvoke(
-                    messages
-                )
-
-                tokens = self.extract_tokens(
-                    model,
-                    response,
-                )
-
+                response = await model.llm.ainvoke(messages)
+                tokens = self.extract_tokens(model,response,)
                 model.record(tokens)
-
                 return response
 
             except Exception as e:
-
                 text = str(e).lower()
-
                 if (
                     "429" in text
                     or "rate" in text
                 ):
 
-                    print(
-                        f"{model.config.name} "
-                        f"rate limited."
-                    )
-
-                    model.request_times.append(
-                        time.time()
-                    )
-
+                    model.request_times.append(time.time())
+                    model = await self.choose_async()
                     continue
-
                 raise
+            
+    async def ainvoke(self, messages):
+        model = await self.choose_async()
+        return await self.ainvoke_with_model(
+            model,
+            messages,
+        )
