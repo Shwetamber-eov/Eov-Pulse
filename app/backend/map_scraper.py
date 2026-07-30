@@ -2,14 +2,14 @@ import json
 import requests
 import heapq
 import math
-import re
 from geopy.distance import geodesic
+import os
 
 # Replace with your actual free SerpApi Key
-SERP_API_KEY = "API_KEY"
+SERP_API_KEY =os.getenv("SERP_API_KEY")
 
 def fetch_local_doctors(specialty, location, user_coordinates):
-    print(f"Querying SerpApi REST Endpoint for: '{specialty} clinic in {location}'...")
+    print(f"Querying SerpApi REST Endpoint for: '{specialty} clinic near {location}'...")
     
     # SerpApi's direct web routing parameters
     url = "https://serpapi.com/search"
@@ -68,25 +68,28 @@ def fetch_local_doctors(specialty, location, user_coordinates):
 # Run validation lookup trace
 # doctors_json_payload = fetch_local_doctors(specialty="Dermatologist", location="Erandwane, Pune")
 
-def extract_specialists(text):
-    # Regex looks for "Specialist Referral:" and captures everything until the end of the line
-    match = re.search(r"Specialist Referral:\s*(.*)", text, re.IGNORECASE)
-    
-    if match:
-        specialist_string = match.group(1).strip()
-        
-        # Handle cases where no specialist is needed
-        if specialist_string.lower() in ["none", "n/a", "no action required"]:
-            return []
-        
-        # Split by commas or slashes if multiple specialists were listed
-        specialists = [s.strip() for s in re.split(r'[,/]', specialist_string) if s.strip()]
-        return specialists
-    
-    return []
+import json
 
-# Usage
-# specialist_list = extract_specialists(llm_response)
+def extract_specialists(llm_response):
+    if llm_response is None:
+        return []
+    if isinstance(llm_response, str):
+        llm_response = json.loads(llm_response)
 
-# print("\n🚀 Clean structured output for your AI Workflow:")
-# print(json.dumps(doctors_json_payload, indent=2))
+    # If a single dict is passed, wrap it in a list
+    if isinstance(llm_response, dict):
+        llm_response = [llm_response]
+
+    specialists = [
+        item.get("specialist","")
+        for item in llm_response
+    ]
+
+    specialists = [
+        s for s in specialists
+        if s and str(s).strip().lower() not in {
+            "", "none", "n/a", "no action required"
+        }
+    ]
+
+    return specialists
