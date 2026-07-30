@@ -44,51 +44,51 @@ class ModelConfig:
 
 MODEL_CONFIGS = [
     # ---------------- Google ---------------- #
-    ModelConfig(
-        name="gemini36",
-        provider="google",
-        model_name="gemini-3.6-flash",   # Replace if using a newer model ID
-        context_window=250_000,
-        rpm=5,
-        rpd=20,
-        priority=1,
-    ),
-    ModelConfig(
-        name="gemini35",
-        provider="google",
-        model_name="gemini-3.5-flash",   # Replace if using a newer model ID
-        context_window=250_000,
-        rpm=5,
-        rpd=20,
-        priority=1,
-    ),
+    # ModelConfig(
+    #     name="gemini36",
+    #     provider="google",
+    #     model_name="gemini-3.6-flash",   # Replace if using a newer model ID
+    #     context_window=250_000,
+    #     rpm=5,
+    #     rpd=20,
+    #     priority=1,
+    # ),
+    # ModelConfig(
+    #     name="gemini35",
+    #     provider="google",
+    #     model_name="gemini-3.5-flash",   # Replace if using a newer model ID
+    #     context_window=250_000,
+    #     rpm=5,
+    #     rpd=20,
+    #     priority=1,
+    # ),
 
-    ModelConfig(
-        name="gemini35",
-        provider="google",
-        model_name="gemini-3.5-flash-lite",   # Replace if using a newer model ID
-        context_window=250_000,
-        rpm=15,
-        rpd=500,
-        priority=2,
-    ),
+    # ModelConfig(
+    #     name="gemini35",
+    #     provider="google",
+    #     model_name="gemini-3.5-flash-lite",   # Replace if using a newer model ID
+    #     context_window=250_000,
+    #     rpm=15,
+    #     rpd=500,
+    #     priority=2,
+    # ),
 
-    ModelConfig(
-        name="gemini31",
-        provider="google",
-        model_name="gemini-3.1-flash-lite",   # Replace if using a newer model ID
-        context_window=250_000,
-        rpm=15,
-        rpd=500,
-        priority=2,
-    ),
+    # ModelConfig(
+    #     name="gemini31",
+    #     provider="google",
+    #     model_name="gemini-3.1-flash-lite",   # Replace if using a newer model ID
+    #     context_window=250_000,
+    #     rpm=15,
+    #     rpd=500,
+    #     priority=2,
+    # ),
 
-    # ---------------- Groq ---------------- #
+    # ---------------- Gemma ---------------- #
     ModelConfig(
-        name="gemma32",
+        name="gemma31",
         provider="google",
-        model_name="gemma4-31b-it",            # Replace with your desired Groq model
-        context_window=8192,
+        model_name="gemma-4-31b-it",            # Replace with your desired Groq model
+        context_window=16_000,
         rpm=30,
         rpd=14_400,
         tpm=16_000,
@@ -97,9 +97,9 @@ MODEL_CONFIGS = [
 
     ModelConfig(
         name="gemma26",
-        provider="groq",
-        model_name="gemma4-26b-it",            # Replace with your desired Groq model
-        context_window=8192,
+        provider="google",
+        model_name="gemma-4-26b-it",            # Replace with your desired Groq model
+        context_window=16_000,
         rpm=30,
         rpd=14_400,
         tpm=16_000,
