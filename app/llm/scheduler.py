@@ -273,22 +273,31 @@ class ModelScheduler:
                 # Fallback to provider-specific metadata
                 usage = metadata.get("usage_metadata", {})
                 print("tokens used :",usage.get("total_token_count")
-                    or (
-                        usage.get("prompt_token_count", 0)
-                        + usage.get("candidates_token_count", 0)
-                    ))
-                return (
-                    usage.get("total_token_count")
-                    or (
-                        usage.get("prompt_token_count", 0)
-                        + usage.get("candidates_token_count", 0)
+                    or (usage.get("prompt_token_count", 0) + usage.get("candidates_token_count", 0))
                     )
+                return (usage.get("total_token_count")
+                    or (usage.get("prompt_token_count", 0) + usage.get("candidates_token_count", 0))
                 )
 
             elif model.config.provider == "groq":   
-#====================need to add different cases===============================
-                usage = metadata.get("token_usage", {})
-                return usage.get("total_tokens", 0)
+                usage = getattr(response, "usage_metadata", 0)
+                
+                if usage:
+                    print("tokens used :",usage.get("total_tokens") or 
+                        (usage.get("input_tokens", 0) + usage.get("output_tokens", 0)))
+                    return usage.get("total_tokens") or (
+                        usage.get("input_tokens", 0)
+                        + usage.get("output_tokens", 0)
+                    )
+                
+                # Fallback to provider-specific metadata
+                usage = metadata.get("usage_metadata", {})
+                print("tokens used :",usage.get("total_token_count")
+                    or (usage.get("prompt_token_count", 0) + usage.get("candidates_token_count", 0))
+                    )
+                return (usage.get("total_token_count")
+                    or (usage.get("prompt_token_count", 0) + usage.get("candidates_token_count", 0))
+                )
 
         except Exception:
             return 0
@@ -306,6 +315,7 @@ class ModelScheduler:
                 return response, model
 
             except Exception as e:
+                print("direct invoke failed")
                 text = str(e).lower()
                 if any(marker in text for marker in CONTEXT_ERROR_MARKERS):
                 # Not a capacity/rate problem — the chunk itself doesn't fit.
@@ -314,7 +324,7 @@ class ModelScheduler:
                 if count>=10:
                     raise RuntimeError(f"All models exhausted after {count} retries") from e
                 count+=1
-                print(text)
+                # print(text)
                 if ("429" in text or "rate" in text):
                     print(f"{model.config.name} rate limited.")
                     model.mark_rate_limited()

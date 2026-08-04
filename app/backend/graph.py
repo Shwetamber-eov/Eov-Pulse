@@ -162,7 +162,6 @@ def retrieve_guidelines_node(state: AgentState):
         print("No data extracted")
         return {"guideline_context": [{"content": "No data extracted so no guidelines can be retrieved"}]}
 
-    # ---------------------------------------
     # Deduplicate lab names
     # ---------------------------------------
 

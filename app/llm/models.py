@@ -10,7 +10,6 @@ from typing import Optional
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_groq import ChatGroq
 
-
 # ============================================================
 # Model Configuration
 # ============================================================
@@ -51,7 +50,7 @@ MODEL_CONFIGS = [
         context_window=250_000,
         rpm=5,
         rpd=20,
-        priority=1,
+        priority=2,
     ),
     ModelConfig(
         name="gemini35",
@@ -60,27 +59,36 @@ MODEL_CONFIGS = [
         context_window=250_000,
         rpm=5,
         rpd=20,
-        priority=1,
+        priority=2,
     ),
 
     ModelConfig(
-        name="gemini35",
+        name="gemini35lite",
         provider="google",
         model_name="gemini-3.5-flash-lite",   # Replace if using a newer model ID
         context_window=250_000,
         rpm=15,
         rpd=500,
-        priority=2,
+        priority=1,
     ),
 
     ModelConfig(
-        name="gemini31",
+        name="gemini3.1lite",
         provider="google",
         model_name="gemini-3.1-flash-lite",   # Replace if using a newer model ID
         context_window=250_000,
         rpm=15,
         rpd=500,
-        priority=2,
+        priority=1,
+    ),
+    ModelConfig(
+        name="llama3.3",
+        provider="groq",
+        model_name="llama-3.3-70b-versatile",   # Replace if using a newer model ID
+        context_window=12_000,
+        rpm=30,
+        rpd=1_000,
+        priority=3,
     ),
 
     # ---------------- Gemma ---------------- #
@@ -92,7 +100,7 @@ MODEL_CONFIGS = [
         rpm=30,
         rpd=14_400,
         tpm=16_000,
-        priority=3,
+        priority=4,
     ),
 
     ModelConfig(
@@ -107,18 +115,13 @@ MODEL_CONFIGS = [
     ),
 ]
 
-
-# ============================================================
 # Factory
-# ============================================================
-
 def create_llm(config: ModelConfig):
     """
     Create a LangChain LLM instance from ModelConfig.
     """
 
     if config.provider == "google":
-
         return ChatGoogleGenerativeAI(
             google_api_key=os.getenv("GOOGLE_API_KEY"),
             model=config.model_name,
@@ -126,28 +129,19 @@ def create_llm(config: ModelConfig):
         )
 
     if config.provider == "groq":
-
         return ChatGroq(
             groq_api_key=os.getenv("GROQ_API_KEY"),
             model=config.model_name,
             temperature=config.temperature,
-
         )
-
     raise ValueError(f"Unsupported provider: {config.provider}")
 
-
-# ============================================================
 # Helpers
-# ============================================================
-
 def get_model_config(name: str) -> ModelConfig:
     """
     Returns a model configuration by its internal name.
     """
-
     for config in MODEL_CONFIGS:
         if config.name == name:
             return config
-
     raise ValueError(f"Unknown model: {name}")
