@@ -1,0 +1,781 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" /> 
+<title>EOV-PULSE — Clinical lab report analysis</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<style>
+  :root{
+    --ibm-blue:#0f62fe; --blue-hover:#0050e6; --blue-active:#002d9c;
+    --white:#ffffff; --gray-10:#f4f4f4; --gray-20:#e0e0e0; --gray-30:#c6c6c6;
+    --gray-50:#8c8c8c; --gray-70:#525252; --gray-90:#262626; --gray-100:#161616;
+    --green:#24a148; --green-bg:#defbe6; --red:#da1e28; --red-bg:#fff1f1;
+    --amber:#8a5300; --amber-bg:#fcf4d6;
+    --font-sans:'IBM Plex Sans',Helvetica Neue,Arial,sans-serif;
+    --font-mono:'IBM Plex Mono',SFMono-Regular,Menlo,monospace;
+  }
+  *,*::before,*::after{box-sizing:border-box;}
+  body{margin:0;background:var(--white);color:var(--gray-100);font-family:var(--font-sans);-webkit-font-smoothing:antialiased;}
+  a{color:var(--ibm-blue);}
+  button{font-family:var(--font-sans);}
+  .wrap{max-width:1392px;margin:0 auto;padding:0 24px;}
+
+  header{position:sticky;top:0;z-index:50;background:var(--white);border-bottom:1px solid var(--gray-20);height:48px;display:flex;align-items:center;padding:0 24px;gap:24px;}
+  .logo{display:flex;align-items:center;gap:10px;}
+  .logo svg{display:block;}
+  .logo-name{font-size:16px;font-weight:600;letter-spacing:.6px;}
+  .logo-caption{font-size:13px;color:var(--gray-70);padding-left:12px;border-left:1px solid var(--gray-20);}
+  .header-right{margin-left:auto;display:flex;align-items:center;gap:16px;font-size:13px;color:var(--gray-70);}
+  .header-right b{color:var(--gray-100);font-weight:500;}
+  .btn-ghost{height:32px;padding:0 12px;border:none;background:transparent;color:var(--ibm-blue);font-size:14px;cursor:pointer;}
+  .btn-ghost:hover{background:var(--gray-10);}
+
+  main{max-width:1392px;margin:0 auto;padding:40px 24px 96px;}
+  .eyebrow{font-size:14px;letter-spacing:.16px;color:var(--gray-70);margin-bottom:12px;}
+  h1.display{font-size:42px;font-weight:300;line-height:1.2;margin:0 0 16px;}
+  .subtitle{font-size:18px;line-height:1.5;color:var(--gray-70);margin:0 0 40px;max-width:64ch;}
+
+  .btn{display:inline-flex;align-items:center;gap:10px;height:40px;padding:0 16px;font-size:14px;letter-spacing:.16px;cursor:pointer;border:none;}
+  .btn-primary{background:var(--ibm-blue);color:#fff;}
+  .btn-primary:hover{background:var(--blue-hover);}
+  .btn-primary:disabled{background:var(--gray-20);color:var(--gray-50);cursor:not-allowed;}
+  .btn-outline{background:#fff;border:1px solid var(--ibm-blue);color:var(--ibm-blue);}
+  .btn-outline:hover{background:var(--ibm-blue);color:#fff;}
+  .btn-dark{background:#fff;border:1px solid var(--gray-100);color:var(--gray-100);}
+  .btn-dark:hover{background:var(--gray-10);}
+
+  /* upload screen */
+  .field-label{font-size:14px;margin-bottom:8px;}
+  .dropzone{display:flex;align-items:center;gap:20px;background:var(--gray-10);border:1px solid var(--gray-20);padding:20px;}
+  .dropzone-file{display:flex;align-items:center;gap:16px;background:var(--gray-10);border:1px solid var(--gray-20);padding:16px 20px;}
+  .file-icon{width:40px;height:40px;flex:none;display:flex;align-items:center;justify-content:center;background:var(--gray-100);color:#fff;}
+  .file-meta small{display:block;font-size:12px;color:var(--gray-50);margin-top:2px;}
+  .remove-btn{border:none;background:none;cursor:pointer;color:var(--gray-70);padding:6px;}
+  .remove-btn:hover{color:var(--gray-100);}
+  .loc-row{display:flex;align-items:center;gap:16px;margin-top:24px;padding-top:24px;border-top:1px solid var(--gray-20);}
+  .loc-status{font-size:14px;color:var(--gray-70);}
+  .analyze-row{margin-top:40px;display:flex;align-items:center;gap:24px;flex-wrap:wrap;}
+  .analyze-hint{font-size:13px;color:var(--gray-50);max-width:34ch;}
+
+  /* analyzing */
+  .steps{border-top:1px solid var(--gray-20);}
+  .step{display:flex;align-items:center;gap:16px;padding:20px 0;border-bottom:1px solid var(--gray-20);}
+  .step-dot{width:16px;height:16px;flex:none;border-radius:50%;border:2px solid var(--gray-20);}
+  .step-dot.active{border-color:var(--gray-20);border-top-color:var(--ibm-blue);animation:spin .8s linear infinite;}
+  .step-dot.done{border-color:var(--green);}
+  .step-label{flex:1;font-size:16px;color:var(--gray-50);}
+  .step-label.on{color:var(--gray-100);}
+  .step-note{font-size:13px;color:var(--gray-50);}
+  @keyframes spin{to{transform:rotate(360deg);}}
+
+  /* results header */
+  .results-top{display:flex;align-items:flex-end;justify-content:space-between;gap:32px;flex-wrap:wrap;margin-bottom:32px;}
+  .results-actions{display:flex;gap:12px;}
+  .patient-line{font-size:14px;color:var(--gray-70);}
+
+  .stat-grid{display:grid;grid-template-columns:1.4fr 1fr 1fr 1.2fr;border:1px solid var(--gray-20);margin-bottom:40px;}
+  .stat{padding:24px;border-left:1px solid var(--gray-20);}
+  .stat:first-child{border-left:none;}
+  .stat-label{font-size:12px;letter-spacing:.32px;color:var(--gray-70);margin-bottom:12px;}
+  .stat-value{font-size:24px;display:flex;align-items:center;gap:12px;}
+  .stat-value.xl{font-size:42px;font-weight:300;line-height:1;}
+  .stat-sub{font-size:14px;color:var(--gray-70);margin-top:8px;}
+  .dot{width:12px;height:12px;flex:none;display:block;}
+
+  /* tabs */
+  .tabbar{display:flex;border-bottom:1px solid var(--gray-20);margin-bottom:32px;gap:0;}
+  .tab-btn{padding:14px 16px;background:none;border:none;border-bottom:2px solid transparent;margin-bottom:-1px;font-size:14px;letter-spacing:.16px;cursor:pointer;color:var(--gray-70);}
+  .tab-btn.active{border-bottom-color:var(--gray-100);color:var(--gray-100);font-weight:600;}
+
+  /* analysis tab */
+  .analysis-grid{display:grid;grid-template-columns:2fr 1fr;gap:32px;align-items:start;margin-bottom:48px;}
+  .panel{padding:24px;border:1px solid var(--gray-20);}
+  .panel.fill{background:var(--gray-10);border:none;}
+  .panel-title{font-size:12px;letter-spacing:.32px;color:var(--gray-70);margin-bottom:12px;}
+  .narrative{font-size:18px;line-height:1.5;margin:0;}
+  .flag-row{display:flex;align-items:baseline;justify-content:space-between;gap:16px;padding:10px 0;border-bottom:1px solid var(--gray-20);font-size:14px;}
+  .flag-row:last-child{border-bottom:none;}
+
+  .section-head{display:flex;align-items:flex-end;justify-content:space-between;gap:24px;flex-wrap:wrap;margin-bottom:20px;}
+  h2.section-title{font-size:24px;font-weight:400;margin:0;}
+  .seg{display:flex;}
+  .seg button{height:32px;padding:0 14px;font-size:14px;cursor:pointer;border:1px solid var(--gray-30);background:#fff;color:var(--gray-100);margin-left:-1px;}
+  .seg button:first-child{margin-left:0;}
+  .seg button.on{background:var(--gray-100);color:#fff;}
+
+  .table-wrap{border:1px solid var(--gray-20);}
+  .table-head{display:grid;grid-template-columns:1.7fr 150px 170px 1fr 130px;gap:16px;padding:12px 24px;border-bottom:1px solid var(--gray-20);font-size:12px;letter-spacing:.32px;color:var(--gray-70);}
+  .group-head{display:flex;align-items:baseline;justify-content:space-between;gap:16px;padding:10px 24px;background:var(--gray-10);border-bottom:1px solid var(--gray-20);}
+  .group-head b{font-size:14px;font-weight:600;}
+  .group-head span{font-size:12px;letter-spacing:.32px;color:var(--gray-70);}
+  .row{display:grid;grid-template-columns:1.7fr 150px 170px 1fr 130px;gap:16px;align-items:center;padding:16px 24px;border-bottom:1px solid var(--gray-20);font-size:16px;}
+  .row .unit{font-size:13px;color:var(--gray-70);}
+  .ref{font-size:14px;color:var(--gray-70);}
+  .bar-track{position:relative;height:20px;padding-right:16px;}
+  .bar-line{position:absolute;left:0;right:16px;top:9px;height:2px;background:var(--gray-20);}
+  .bar-range{position:absolute;top:7px;height:6px;background:#a7f0ba;}
+  .bar-marker{position:absolute;top:2px;width:2px;height:16px;}
+  .badge{display:inline-flex;align-items:center;height:24px;padding:0 10px;font-size:12px;letter-spacing:.16px;width:fit-content;}
+
+  details.refs{border-top:1px solid var(--gray-20);border-bottom:1px solid var(--gray-20);}
+  details.refs summary{list-style:none;cursor:pointer;display:flex;align-items:center;gap:12px;padding:18px 0;font-size:16px;}
+  details.refs summary::-webkit-details-marker{display:none;}
+  details.refs summary .chev{transition:transform .1s;}
+  details.refs[open] summary .chev{transform:rotate(180deg);}
+  details.refs .ref-item{padding:12px 0 12px 28px;border-top:1px solid var(--gray-20);}
+  details.refs .ref-item .t{font-size:14px;}
+  details.refs .ref-item .d{font-size:13px;color:var(--gray-70);margin-top:4px;}
+
+  /* action plan */
+  .action-card{display:grid;grid-template-columns:220px 1fr 260px;gap:32px;padding:28px 0;border-bottom:1px solid var(--gray-20);}
+  .action-card:first-child{border-top:1px solid var(--gray-100);}
+  .action-driver{font-size:13px;color:var(--gray-70);margin-top:12px;}
+  h3.action-title{font-size:20px;font-weight:400;margin:0 0 8px;}
+  .action-why{font-size:14px;line-height:1.5;color:var(--gray-70);margin:0 0 16px;max-width:68ch;}
+  .step-item{display:flex;gap:12px;align-items:flex-start;font-size:14px;line-height:1.5;margin-bottom:8px;}
+  .step-item svg{flex:none;margin-top:3px;}
+  .meta-label{font-size:12px;letter-spacing:.32px;color:var(--gray-70);margin-bottom:6px;}
+  .meta-value{font-size:16px;margin-bottom:16px;}
+
+  .schedule-grid{display:grid;grid-template-columns:repeat(4,1fr);border:1px solid var(--gray-20);}
+  .schedule-item{padding:24px;border-left:1px solid var(--gray-20);}
+  .schedule-item:first-child{border-left:none;}
+  .schedule-dot{width:8px;height:8px;background:var(--ibm-blue);margin-bottom:16px;}
+  .schedule-when{font-size:20px;}
+  .schedule-what{font-size:14px;line-height:1.5;color:var(--gray-70);margin-top:8px;}
+
+  .notice{display:flex;gap:14px;background:#edf5ff;border:1px solid #d0e2ff;padding:16px 20px;max-width:900px;margin-top:40px;}
+  .notice b{display:block;margin-bottom:4px;}
+  .notice p{margin:0;font-size:14px;line-height:1.5;color:var(--gray-90);}
+
+  /* specialists */
+  .spec-layout{display:grid;grid-template-columns:420px 1fr;gap:24px;align-items:start;}
+  .spec-list{border:1px solid var(--gray-20);max-height:620px;overflow-y:auto;}
+  .spec-card{display:grid;grid-template-columns:28px 1fr;gap:14px;padding:20px;border-bottom:1px solid var(--gray-20);cursor:pointer;border-left:3px solid transparent;}
+  .spec-card.selected{background:var(--gray-10);border-left-color:var(--ibm-blue);}
+  .spec-pin{width:24px;height:24px;display:flex;align-items:center;justify-content:center;font-size:12px;background:var(--gray-100);color:#fff;}
+  .spec-card.selected .spec-pin{background:var(--ibm-blue);}
+  .spec-top{display:flex;align-items:baseline;justify-content:space-between;gap:12px;}
+  .spec-name{font-size:16px;}
+  .spec-dist{font-size:13px;color:var(--gray-70);white-space:nowrap;}
+  .spec-addr{font-size:14px;line-height:1.5;color:var(--gray-70);margin-top:10px;}
+  .spec-match{font-size:13px;margin-top:10px;}
+  .spec-bottom{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:14px;}
+  .spec-slot{font-size:13px;color:var(--gray-70);}
+  #map{height:620px;border:1px solid var(--gray-20);background:var(--gray-10);}
+  .map-legend{display:flex;align-items:center;gap:24px;margin-top:12px;font-size:12px;letter-spacing:.32px;color:var(--gray-70);}
+  .map-legend span{display:inline-flex;align-items:center;gap:8px;}
+  .swatch{width:10px;height:10px;display:block;}
+
+  .empty{padding:48px 24px;text-align:center;color:var(--gray-70);border:1px solid var(--gray-20);font-size:14px;}
+  .error-banner{background:var(--red-bg);border:1px solid var(--red);color:#750e13;padding:16px 20px;margin-bottom:24px;font-size:14px;}
+
+  footer{background:var(--gray-100);color:var(--gray-30);padding:40px 24px;}
+  .footer-wrap{max-width:1392px;margin:0 auto;display:flex;align-items:flex-start;justify-content:space-between;gap:32px;flex-wrap:wrap;}
+  .footer-wrap .fname{font-size:16px;font-weight:600;color:#fff;margin-bottom:8px;}
+  .footer-wrap .fdesc{font-size:14px;line-height:1.5;max-width:52ch;}
+  .footer-wrap .fdisclaimer{font-size:14px;}
+
+  @media (max-width: 900px){
+    .stat-grid{grid-template-columns:1fr 1fr;}
+    .stat{border-left:none;border-top:1px solid var(--gray-20);}
+    .stat:nth-child(1),.stat:nth-child(2){border-top:none;}
+    .analysis-grid{grid-template-columns:1fr;}
+    .spec-layout{grid-template-columns:1fr;}
+    .table-head{display:none;}
+    .row{grid-template-columns:1fr;gap:6px;padding:16px;}
+    .action-card{grid-template-columns:1fr;}
+    .schedule-grid{grid-template-columns:1fr 1fr;}
+  }
+</style>
+</head>
+<body>
+
+<header id="siteHeader"></header>
+<main id="app"></main>
+<footer><div class="footer-wrap">
+  <div>
+    <div class="fname">EOV-PULSE</div>
+    <div class="fdesc">Clinical lab report analysis, guideline referencing, and local specialist routing. Reference ranges follow WHO and the guideline bodies cited in each panel.</div>
+  </div>
+  <div class="fdisclaimer">Not a substitute for professional medical advice.</div>
+</div></footer>
+
+<script>
+/* =========================================================================
+   CONFIG — point this at your backend (see backend_api.py). Leave empty
+   ('') if this file is served BY that same backend (recommended: avoids
+   CORS entirely). Set to e.g. 'http://localhost:8000' if served separately.
+========================================================================= */
+const API_BASE = '';
+
+/* ---------------------------------------------------------------------
+   STATE
+--------------------------------------------------------------------- */
+const state = {
+  view: 'upload',            // upload | analyzing | results
+  file: null,
+  fileName: '',
+  fileSizeLabel: '',
+  coords: null,               // {lat, lng}
+  address: '',
+  locationStatus: 'idle',     // idle | pending | granted | denied
+  analyzeStep: 0,
+  analyzing: false,
+  error: null,
+  result: null,
+  nearbySpecialists: [],
+  tab: 'analysis',
+  labFilter: 'all',
+  specialtyFilter: 'all',
+  selectedIdx: 0,
+  refsOpen: true,
+};
+
+let stepTimer = null;
+let leafletMap = null;
+let mapMarkers = {};
+
+/* ---------------------------------------------------------------------
+   STYLE HELPERS
+--------------------------------------------------------------------- */
+const STATUS_STYLE = {
+  elevated: ['Elevated', '#da1e28', '#fff1f1'],
+  high:     ['Elevated', '#da1e28', '#fff1f1'],
+  low:      ['Low', '#da1e28', '#fff1f1'],
+  in_range: ['In range', '#022d0d', '#a7f0ba'],
+  normal:   ['In range', '#022d0d', '#a7f0ba'],
+};
+const PRIORITY_STYLE = {
+  high:    ['High priority', '#750e13', '#fff1f1'],
+  medium:  ['Medium priority', '#684e00', '#fcf4d6'],
+  monitor: ['Monitor', '#161616', '#e0e0e0'],
+};
+function badge(text, fg, bg){ return `<span class="badge" style="color:${fg};background:${bg};">${text}</span>`; }
+function statusBadge(s){ const v = STATUS_STYLE[s] || ['—','#525252','#e0e0e0']; return badge(...v); }
+function priorityBadge(p){ const v = PRIORITY_STYLE[p] || ['Note','#161616','#e0e0e0']; return badge(...v); }
+function esc(s){ return (s ?? '').toString().replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+function rangeBarHTML(value, lo, hi, status){
+  const nums = [value, lo, hi].filter(v => typeof v === 'number');
+  if (!nums.length) return '<div class="bar-track"><div class="bar-line"></div></div>';
+  const hiBound = Math.max(...nums) * 1.35 || 1, loBound = 0;
+  const frac = v => typeof v === 'number' ? Math.max(0, Math.min(1, (v - loBound) / (hiBound - loBound))) * 100 : null;
+  let fLow = frac(lo), fHigh = frac(hi), fVal = frac(value);
+  if (fLow === null) fLow = 0;
+  if (fHigh === null) fHigh = 100;
+  const color = status === 'in_range' || status === 'normal' ? '#24a148' : '#da1e28';
+  const markerStyle = fVal !== null ? `left:calc(${fVal}% - 1px); background:${color};` : 'display:none;';
+  return `<div class="bar-track">
+    <div class="bar-line"></div>
+    <div class="bar-range" style="left:${fLow}%; width:${Math.max(fHigh - fLow, 1)}%;"></div>
+    <div class="bar-marker" style="${markerStyle}"></div>
+  </div>`;
+}
+
+/* ---------------------------------------------------------------------
+   BACKEND CONTRACT ADAPTERS
+   Mirrors the shape returned by /api/analyze (see backend_api.py docstring).
+--------------------------------------------------------------------- */
+function getExtracted(r){
+  const ed = r?.extracted_data;
+  if (Array.isArray(ed) && ed.length && typeof ed[0] === 'object') return ed[0];
+  if (ed && typeof ed === 'object') return ed;
+  return {};
+}
+const getNarrative = r => getExtracted(r).summary || 'No summary was returned for this report.';
+const getParameters = r => Array.isArray(getExtracted(r).parameters) ? getExtracted(r).parameters : [];
+const getReportDate = r => getExtracted(r).report_date || '';
+const getFlaggedSystems = r => Array.isArray(getExtracted(r).flagged_systems) ? getExtracted(r).flagged_systems : [];
+function getStatusCounts(r){
+  const p = getParameters(r), total = p.length;
+  const elevated = p.filter(x => x.status === 'elevated' || x.status === 'high').length;
+  const low = p.filter(x => x.status === 'low').length;
+  const out = elevated + low;
+  return { total, out, in: total - out, elevated, low };
+}
+function getInRangeNames(r, limit=4){
+  return getParameters(r).filter(p => p.status === 'in_range').map(p => p.name).slice(0, limit).join(', ');
+}
+function getNextRetest(r){ const e = getExtracted(r); return [e.next_retest || '—', e.next_retest_detail || '']; }
+function getGuidelines(r){
+  const ctx = r?.guideline_context;
+  if (Array.isArray(ctx)) return ctx;
+  if (typeof ctx === 'string' && ctx.trim()) return [{ title: 'Referenced guideline context', description: ctx.slice(0,600) + (ctx.length>600?'...':'') }];
+  return [];
+}
+function getFinalPlan(r){ return (r && typeof r.final_plan === 'object') ? r.final_plan : {}; }
+const getActions = r => Array.isArray(getFinalPlan(r).actions) ? getFinalPlan(r).actions : [];
+const getRetestSchedule = r => Array.isArray(getFinalPlan(r).retest_schedule) ? getFinalPlan(r).retest_schedule : [];
+const getPlanFallback = r => getFinalPlan(r).follow_up_plan || 'No action plan was returned for this report.';
+
+/* ---------------------------------------------------------------------
+   RENDER
+--------------------------------------------------------------------- */
+function render(){
+  renderHeader();
+  const app = document.getElementById('app');
+  if (state.view === 'upload') app.innerHTML = viewUpload();
+  else if (state.view === 'analyzing') app.innerHTML = viewAnalyzing();
+  else app.innerHTML = viewResults();
+
+  if (state.view === 'results' && state.tab === 'specialists') {
+    requestAnimationFrame(initOrUpdateMap);
+  }
+}
+
+function renderHeader(){
+  const h = document.getElementById('siteHeader');
+  const bits = [];
+  if (state.fileName) bits.push(`📄 <b>${esc(state.fileName)}</b>`);
+  if (state.address) bits.push(`<b>${esc(state.address.split(',').slice(0,2).join(', '))}</b>`);
+  const showNew = state.view === 'results';
+  h.innerHTML = `
+    <div class="logo">
+      <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M1 13h4l2.5-7 3.5 14 3-9 2 2h7" fill="none" stroke="#0f62fe" stroke-width="2"/></svg>
+      <span class="logo-name">EOV-PULSE</span>
+      <span class="logo-caption">Clinical lab report analysis</span>
+    </div>
+    <div class="header-right">
+      ${bits.join(' &nbsp;·&nbsp; ')}
+      ${showNew ? `<button class="btn-ghost" onclick="newReport()">New report</button>` : ''}
+    </div>`;
+}
+
+function viewUpload(){
+  return `
+    <div class="eyebrow">New analysis</div>
+    <h1 class="display">Upload a lab report to begin.</h1>
+    <p class="subtitle">EOV-PULSE reads the report, compares every parameter against WHO and guideline reference ranges, and returns a status summary with follow-up steps.</p>
+
+    ${state.error ? `<div class="error-banner">${esc(state.error)}</div>` : ''}
+
+    <div class="field-label">Patient lab report (PDF)</div>
+    ${!state.file ? `
+      <div class="dropzone">
+        <label class="btn-dark" for="fileInput" style="cursor:pointer;">
+          <svg viewBox="0 0 32 32" width="16" height="16" fill="currentColor"><path d="M25.7,9.3l-7-7C18.5,2.1,18.3,2,18,2H8C6.9,2,6,2.9,6,4v24c0,1.1,0.9,2,2,2h16c1.1,0,2-0.9,2-2V10C26,9.7,25.9,9.5,25.7,9.3z M18,4.4l5.6,5.6H18V4.4z M24,28H8V4h8v6c0,1.1,0.9,2,2,2h6V28z"/><rect x="10" y="22" width="12" height="2"/><rect x="10" y="16" width="12" height="2"/></svg>
+          Choose file
+        </label>
+        <input id="fileInput" type="file" accept="application/pdf" style="display:none" onchange="onFileSelected(event)" />
+        <span style="font-size:14px;color:var(--gray-50);">or drop it here · PDF only</span>
+      </div>` : `
+      <div class="dropzone-file">
+        <span class="file-icon">
+          <svg viewBox="0 0 32 32" width="20" height="20" fill="currentColor"><path d="M25.7,9.3l-7-7C18.5,2.1,18.3,2,18,2H8C6.9,2,6,2.9,6,4v24c0,1.1,0.9,2,2,2h16c1.1,0,2-0.9,2-2V10C26,9.7,25.9,9.5,25.7,9.3z M18,4.4l5.6,5.6H18V4.4z M24,28H8V4h8v6c0,1.1,0.9,2,2,2h6V28z"/><rect x="10" y="22" width="12" height="2"/><rect x="10" y="16" width="12" height="2"/></svg>
+        </span>
+        <span style="flex:1;">
+          ${esc(state.fileName)}
+          <small>${esc(state.fileSizeLabel)} · PDF</small>
+        </span>
+        <button class="remove-btn" onclick="removeFile()" aria-label="Remove file">
+          <svg viewBox="0 0 32 32" width="16" height="16" fill="currentColor"><polygon points="17.4141 16 24 9.4141 22.5859 8 16 14.5859 9.4143 8 8 9.4141 14.5859 16 8 22.5859 9.4143 24 16 17.4141 22.5859 24 24 22.5859 17.4141 16"/></svg>
+        </button>
+      </div>`}
+
+    <div class="loc-row">
+      <button class="btn-outline" onclick="useMyLocation()">Use my location</button>
+      <span class="loc-status">${esc(locationStatusLabel())}</span>
+    </div>
+
+    <div class="analyze-row">
+      <button class="btn-primary" ${!state.file ? 'disabled' : ''} onclick="analyzeReport()">
+        <span>Analyse report</span>
+        <svg viewBox="0 0 32 32" width="16" height="16" fill="currentColor"><polygon points="18 6 16.57 7.393 24.15 15 4 15 4 17 24.15 17 16.57 24.573 18 26 28 16 18 6"/></svg>
+      </button>
+      <span class="analyze-hint">${state.file ? 'Typically takes under a minute.' : 'Attach a PDF report to continue.'}</span>
+    </div>
+  `;
+}
+
+function locationStatusLabel(){
+  if (state.locationStatus === 'pending') return 'Locating…';
+  if (state.locationStatus === 'granted') return state.address ? `Location set: ${state.address}` : 'Location set.';
+  if (state.locationStatus === 'denied') return 'Location access denied — you can still analyse without it.';
+  return 'Optional — used only to rank nearby specialists.';
+}
+
+const STEP_LABELS = [
+  'Extracting text from the PDF',
+  'Identifying laboratory parameters',
+  'Comparing against WHO and guideline ranges',
+  'Generating follow-up recommendations',
+];
+function viewAnalyzing(){
+  const rows = STEP_LABELS.map((label, i) => {
+    const done = state.analyzeStep > i, active = state.analyzeStep === i;
+    return `<div class="step">
+      <div class="step-dot ${done ? 'done' : active ? 'active' : ''}"></div>
+      <div class="step-label ${done || active ? 'on' : ''}">${label}</div>
+      <div class="step-note">${done ? 'Done' : active ? 'Working' : 'Queued'}</div>
+    </div>`;
+  }).join('');
+  return `
+    <div class="eyebrow">${esc(state.fileName)}</div>
+    <h1 class="display">Analysing report…</h1>
+    <div class="steps">${rows}</div>
+  `;
+}
+
+function viewResults(){
+  const r = state.result;
+  const counts = getStatusCounts(r);
+  const [nextRetest, nextRetestDetail] = getNextRetest(r);
+  const overallOk = counts.out === 0;
+
+  return `
+    ${state.error ? `<div class="error-banner">${esc(state.error)}</div>` : ''}
+    <div class="results-top">
+      <div>
+        <div class="eyebrow">Report analysis${getReportDate(r) ? ' · ' + esc(getReportDate(r)) : ''}</div>
+        <h1 class="display">Health status summary</h1>
+        <div class="patient-line">${esc(patientLine(r, counts.total))}</div>
+      </div>
+      <div class="results-actions">
+        <button class="btn-dark" onclick="downloadSummary()">Download summary</button>
+        <button class="btn-primary" onclick="selectTab('specialists')">Find a specialist</button>
+      </div>
+    </div>
+
+    <div class="stat-grid">
+      <div class="stat">
+        <div class="stat-label">Overall status</div>
+        <div class="stat-value"><span class="dot" style="background:${overallOk ? '#24a148' : '#da1e28'};"></span>${overallOk ? 'Looks good' : 'Needs attention'}</div>
+        <div class="stat-sub">${counts.out} of ${counts.total || '—'} parameters fall outside guideline range.</div>
+      </div>
+      <div class="stat">
+        <div class="stat-label">Out of range</div>
+        <div class="stat-value xl" style="color:${counts.out ? '#da1e28' : 'inherit'};">${counts.out}</div>
+        <div class="stat-sub">${counts.elevated} elevated · ${counts.low} low</div>
+      </div>
+      <div class="stat">
+        <div class="stat-label">Within range</div>
+        <div class="stat-value xl">${counts.in}</div>
+        <div class="stat-sub">${esc(getInRangeNames(r)) || '—'}</div>
+      </div>
+      <div class="stat">
+        <div class="stat-label">Next retest</div>
+        <div class="stat-value">${esc(nextRetest)}</div>
+        <div class="stat-sub">${esc(nextRetestDetail)}</div>
+      </div>
+    </div>
+
+    <div class="tabbar">
+      <button class="tab-btn ${state.tab==='analysis'?'active':''}" onclick="selectTab('analysis')">Analysis</button>
+      <button class="tab-btn ${state.tab==='plan'?'active':''}" onclick="selectTab('plan')">Action plan</button>
+      <button class="tab-btn ${state.tab==='specialists'?'active':''}" onclick="selectTab('specialists')">Nearby specialists</button>
+    </div>
+
+    ${state.tab === 'analysis' ? analysisTab(r) : state.tab === 'plan' ? planTab(r) : specialistsTab()}
+  `;
+}
+
+function patientLine(r, total){
+  const ex = getExtracted(r);
+  const p = ex.patient || {};
+  const parts = [];
+  if (p.age) parts.push(`${p.age}-year-old${p.sex ? ' ' + p.sex : ''}`);
+  if (total) parts.push(`${total} parameters extracted`);
+  parts.push('compared against WHO and guideline reference ranges');
+  return parts.join(' · ');
+}
+
+function analysisTab(r){
+  const flags = getFlaggedSystems(r);
+  const flagRows = flags.length ? flags.map(f => `
+    <div class="flag-row"><span>${esc(f.name||'')}</span><span style="color:${f.status==='good'?'#24a148':'#da1e28'};font-weight:500;">${esc(f.detail||'')}</span></div>
+  `).join('') : `<div class="flag-row"><span style="color:var(--gray-50);">No flagged systems returned.</span></div>`;
+
+  const params = getParameters(r);
+  const counts = getStatusCounts(r);
+  const shown = state.labFilter === 'out' ? params.filter(p => p.status==='elevated'||p.status==='high'||p.status==='low')
+              : state.labFilter === 'in' ? params.filter(p => p.status==='in_range'||p.status==='normal')
+              : params;
+
+  const groups = {};
+  shown.forEach(p => { const k = p.category || 'Other'; (groups[k] ||= []).push(p); });
+
+  const tableHTML = Object.keys(groups).length ? `
+    <div class="table-wrap">
+      <div class="table-head"><span>Parameter</span><span>Result</span><span>Reference range</span><span>Position in range</span><span>Status</span></div>
+      ${Object.entries(groups).map(([cat, rows]) => `
+        <div class="group-head"><b>${esc(cat)}</b><span>${esc(rows[0].guideline_label||'')}</span></div>
+        ${rows.map(row => `
+          <div class="row">
+            <span>${esc(row.name||'')}</span>
+            <span><b>${row.value ?? '—'}</b> <span class="unit">${esc(row.unit||'')}</span></span>
+            <span class="ref">${esc(row.reference_label||'')}</span>
+            ${rangeBarHTML(row.value, row.reference_low, row.reference_high, row.status)}
+            ${statusBadge(row.status)}
+          </div>
+        `).join('')}
+      `).join('')}
+    </div>` : `<div class="empty">No structured lab parameters were returned for this report yet.</div>`;
+
+  const guidelines = getGuidelines(r);
+
+  return `
+    <div class="analysis-grid">
+      <div class="panel fill">
+        <div class="panel-title">What the report says</div>
+        <p class="narrative">${esc(getNarrative(r))}</p>
+      </div>
+      <div class="panel">
+        <div class="panel-title">Flagged systems</div>
+        ${flagRows}
+      </div>
+    </div>
+
+    <div class="section-head">
+      <h2 class="section-title">Extracted lab values</h2>
+      <div class="seg">
+        <button class="${state.labFilter==='all'?'on':''}" onclick="setLabFilter('all')">All ${counts.total}</button>
+        <button class="${state.labFilter==='out'?'on':''}" onclick="setLabFilter('out')">Out of range ${counts.out}</button>
+        <button class="${state.labFilter==='in'?'on':''}" onclick="setLabFilter('in')">Within range ${counts.in}</button>
+      </div>
+    </div>
+    ${tableHTML}
+
+    <details class="refs" ${state.refsOpen ? 'open' : ''} ontoggle="state.refsOpen = this.open">
+      <summary>
+        <svg class="chev" viewBox="0 0 32 32" width="16" height="16" fill="currentColor"><polygon points="16,22 6,12 7.4,10.6 16,19.2 24.6,10.6 26,12 "/></svg>
+        <span style="flex:1;">Referenced guidelines</span>
+        <span style="font-size:13px;color:var(--gray-50);">${guidelines.length} source${guidelines.length!==1?'s':''}</span>
+      </summary>
+      ${guidelines.length ? guidelines.map(g => `
+        <div class="ref-item"><div class="t">${esc(g.title||'')}</div><div class="d">${esc(g.description||'')}</div></div>
+      `).join('') : `<div class="ref-item"><div class="d">No guideline context was returned for this report.</div></div>`}
+    </details>
+  `;
+}
+
+function planTab(r){
+  const actions = getActions(r);
+  const body = actions.length ? actions.map(a => `
+    <div class="action-card">
+      <div>
+        ${priorityBadge(a.priority)}
+        <div class="action-driver">${esc(a.parameter_label||'')}</div>
+      </div>
+      <div>
+        <h3 class="action-title">${esc(a.title||'')}</h3>
+        <p class="action-why">${esc(a.description||'')}</p>
+        ${(a.steps||[]).map(s => `
+          <div class="step-item">
+            <svg viewBox="0 0 32 32" width="16" height="16" fill="#0f62fe"><polygon points="18 6 16.57 7.393 24.15 15 4 15 4 17 24.15 17 16.57 24.573 18 26 28 16 18 6"/></svg>
+            <span>${esc(s)}</span>
+          </div>`).join('')}
+      </div>
+      <div>
+        <div class="meta-label">Retest window</div>
+        <div class="meta-value">${esc(a.retest_window||'—')}</div>
+        <div class="meta-label">Refer to</div>
+        <div class="meta-value">${esc(a.refer_to||'—')}</div>
+      </div>
+    </div>
+  `).join('') : `<div class="panel"><p class="narrative">${esc(getPlanFallback(r))}</p></div>`;
+
+  const schedule = getRetestSchedule(r);
+  const scheduleHTML = schedule.length ? `
+    <h2 class="section-title" style="margin:48px 0 20px;">Retest schedule</h2>
+    <div class="schedule-grid">
+      ${schedule.map(s => `
+        <div class="schedule-item">
+          <div class="schedule-dot"></div>
+          <div class="schedule-when">${esc(s.when||'')}</div>
+          <div class="schedule-what">${esc(s.detail||'')}</div>
+        </div>`).join('')}
+    </div>` : '';
+
+  return `
+    <h2 class="section-title" style="margin-bottom:8px;">Personalised follow-up plan</h2>
+    <div style="font-size:14px;color:var(--gray-70);margin-bottom:8px;">Ordered by clinical priority</div>
+    ${body}
+    ${scheduleHTML}
+    <div class="notice">
+      <div>
+        <b>Guidance, not a diagnosis</b>
+        <p>EOV-PULSE compares extracted values against published reference ranges. Interpretation and treatment decisions belong to a qualified clinician.</p>
+      </div>
+    </div>
+  `;
+}
+
+function specialistsTab(){
+  const list = state.nearbySpecialists || [];
+  const specialties = [...new Set(list.map(s => s.specialty).filter(Boolean))];
+  const filtered = state.specialtyFilter === 'all' ? list : list.filter(s => s.specialty === state.specialtyFilter);
+
+  const filterChips = `
+    <div class="seg">
+      <button class="${state.specialtyFilter==='all'?'on':''}" onclick="setSpecialtyFilter('all')">All ${list.length}</button>
+      ${specialties.map(sp => `<button class="${state.specialtyFilter===sp?'on':''}" onclick="setSpecialtyFilter('${esc(sp).replace(/'/g,"\\'")}')">${esc(sp)}</button>`).join('')}
+    </div>`;
+
+  const listHTML = filtered.length ? filtered.map((s, i) => {
+    const idx = list.indexOf(s);
+    return `
+      <div class="spec-card ${idx===state.selectedIdx?'selected':''}" onclick="selectSpecialist(${idx})">
+        <span class="spec-pin">${idx+1}</span>
+        <div>
+          <div class="spec-top"><span class="spec-name">${esc(s.name||'Specialist')}</span><span class="spec-dist">${esc(s.distance||'')}</span></div>
+          ${s.specialty ? `<div style="margin-top:8px;">${badge(esc(s.specialty),'#002d9c','#d0e2ff')}</div>` : ''}
+          <div class="spec-addr">${esc(s.address||'')}</div>
+          ${s.matched_for ? `<div class="spec-match"><b>Matched for:</b> ${esc(s.matched_for)}</div>` : ''}
+          <div class="spec-bottom"><span class="spec-slot">${s.next_slot ? 'Next slot: ' + esc(s.next_slot) : ''}</span>${(s.lat&&s.lng)?'<span style="font-size:14px;color:var(--ibm-blue);">Get directions</span>':''}</div>
+        </div>
+      </div>`;
+  }).join('') : `<div class="empty">No nearby specialists were returned yet.</div>`;
+
+  return `
+    <h2 class="section-title" style="margin-bottom:8px;">Specialists near you</h2>
+    <div class="patient-line" style="margin-bottom:20px;">Matched to your flagged parameters${state.address ? ' · near ' + esc(state.address.split(',')[0]) : ''}</div>
+    <div class="section-head">${filterChips}</div>
+    <div class="spec-layout">
+      <div class="spec-list">${listHTML}</div>
+      <div>
+        <div id="map"></div>
+        <div class="map-legend">
+          <span><span class="swatch" style="background:#161616;"></span>Specialist</span>
+          <span><span class="swatch" style="background:#0f62fe;"></span>Selected</span>
+          <span><span class="swatch" style="border:2px solid #0f62fe;border-radius:50%;"></span>Your location</span>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+/* ---------------------------------------------------------------------
+   MAP (Leaflet)
+--------------------------------------------------------------------- */
+function initOrUpdateMap(){
+  const el = document.getElementById('map');
+  if (!el || !window.L) return;
+  if (!leafletMap) {
+    const home = state.coords ? [state.coords.lat, state.coords.lng] : [20.5937, 78.9629];
+    leafletMap = L.map(el, { scrollWheelZoom: false }).setView(home, state.coords ? 13 : 5);
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+      subdomains: 'abcd', maxZoom: 19, attribution: '&copy; OpenStreetMap contributors &copy; CARTO',
+    }).addTo(leafletMap);
+    if (state.coords) {
+      L.marker(home, { icon: L.divIcon({ className:'', iconSize:[16,16], iconAnchor:[8,8],
+        html:'<div style="width:16px;height:16px;border-radius:50%;border:3px solid #0f62fe;background:#fff;box-sizing:border-box"></div>' }) })
+        .addTo(leafletMap).bindPopup('Your location');
+    }
+  }
+  mapMarkers = {};
+  (state.nearbySpecialists||[]).forEach((s, i) => {
+    if (typeof s.lat !== 'number' || typeof s.lng !== 'number') return;
+    const icon = pinIcon(i+1, i===state.selectedIdx);
+    const m = L.marker([s.lat, s.lng], { icon }).addTo(leafletMap)
+      .bindPopup(`<strong>${esc(s.name||'')}</strong><br>${esc(s.specialty||'')} · ${esc(s.distance||'')}<br>${esc(s.address||'')}`);
+    m.on('click', () => selectSpecialist(i));
+    mapMarkers[i] = m;
+  });
+  setTimeout(() => leafletMap.invalidateSize(), 60);
+}
+function pinIcon(n, on){
+  const bg = on ? '#0f62fe' : '#161616';
+  return L.divIcon({ className:'', iconSize:[24,24], iconAnchor:[12,12],
+    html:`<div style="width:24px;height:24px;background:${bg};color:#fff;font-family:'IBM Plex Sans',sans-serif;font-size:12px;display:flex;align-items:center;justify-content:center;">${n}</div>` });
+}
+
+/* ---------------------------------------------------------------------
+   ACTIONS
+--------------------------------------------------------------------- */
+function onFileSelected(e){
+  const f = e.target.files[0];
+  if (!f) return;
+  state.file = f;
+  state.fileName = f.name;
+  state.fileSizeLabel = (f.size/1024/1024).toFixed(1) + ' MB';
+  state.error = null;
+  render();
+}
+function removeFile(){ state.file = null; state.fileName=''; state.fileSizeLabel=''; render(); }
+
+function useMyLocation(){
+  if (!navigator.geolocation) { state.locationStatus = 'denied'; render(); return; }
+  state.locationStatus = 'pending'; render();
+  navigator.geolocation.getCurrentPosition(async pos => {
+    state.coords = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+    state.locationStatus = 'granted';
+    try {
+      const fd = new FormData();
+      fd.append('lat', state.coords.lat);
+      fd.append('lng', state.coords.lng);
+      const res = await fetch(`${API_BASE}/api/geocode`, { method:'POST', body: fd });
+      if (res.ok) { const j = await res.json(); state.address = j.address || ''; }
+    } catch (e) { /* non-fatal: proceed without a reverse-geocoded address */ }
+    render();
+  }, () => { state.locationStatus = 'denied'; render(); }, { timeout: 10000 });
+}
+
+async function analyzeReport(){
+  if (!state.file) return;
+  state.view = 'analyzing'; state.analyzeStep = 0; state.error = null; render();
+  stepTimer = setInterval(() => {
+    if (state.analyzeStep < STEP_LABELS.length - 1) { state.analyzeStep++; render(); }
+  }, 1400);
+
+  try {
+    const fd = new FormData();
+    fd.append('file', state.file);
+    if (state.coords) { fd.append('lat', state.coords.lat); fd.append('lng', state.coords.lng); }
+    if (state.address) fd.append('address', state.address);
+
+    const res = await fetch(`${API_BASE}/api/analyze`, { method: 'POST', body: fd });
+    if (!res.ok) throw new Error(`Server returned ${res.status}`);
+    const data = await res.json();
+
+    clearInterval(stepTimer);
+    state.analyzeStep = STEP_LABELS.length;
+    state.result = data.result || {};
+    state.nearbySpecialists = Array.isArray(data.nearby_specialists) ? data.nearby_specialists : [];
+    state.selectedIdx = 0;
+    state.tab = 'analysis';
+    setTimeout(() => { state.view = 'results'; render(); }, 400);
+  } catch (err) {
+    clearInterval(stepTimer);
+    state.view = 'upload';
+    state.error = `Analysis failed: ${err.message}. Check that the backend is running and reachable at ${API_BASE || window.location.origin}.`;
+    render();
+  }
+}
+
+function newReport(){
+  state.view = 'upload'; state.file = null; state.fileName=''; state.fileSizeLabel='';
+  state.result = null; state.nearbySpecialists = []; state.error = null;
+  state.tab = 'analysis'; state.labFilter = 'all'; state.specialtyFilter = 'all'; state.selectedIdx = 0;
+  leafletMap = null;
+  render();
+}
+
+function selectTab(t){ state.tab = t; render(); }
+function setLabFilter(f){ state.labFilter = f; render(); }
+function setSpecialtyFilter(f){ state.specialtyFilter = f; render(); }
+function selectSpecialist(i){
+  state.selectedIdx = i; render();
+  const s = state.nearbySpecialists[i];
+  if (leafletMap && s && typeof s.lat === 'number') {
+    leafletMap.setView([s.lat, s.lng], 15, { animate: true });
+    Object.values(mapMarkers).forEach((m, j) => {});
+  }
+}
+function downloadSummary(){
+  const text = getNarrative(state.result) + '\n\n' + getPlanFallback(state.result);
+  const blob = new Blob([text], { type: 'text/plain' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'eov_pulse_summary.txt';
+  a.click();
+}
+
+render();
+</script>
+</body>
+</html>
