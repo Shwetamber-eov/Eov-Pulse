@@ -10,12 +10,13 @@ sys.path.insert(0, str(ROOT))
 from testing.runner import run_all_tests
 
 # OUTPUT = ROOT / "test_results" / "analysis_results2.csv"      #csv file to save the output test results
-OUTPUT = ROOT / "test_results" / "analysis_results_gemini.csv"      #csv file to save the output test results
+# OUTPUT = ROOT / "test_results" / "analysis_results_gemini.csv"      #csv file to save the output test results
 # OUTPUT = ROOT / "test_results" / "analysis_results_gemma.csv"      #csv file to save the output test results
 # OUTPUT = ROOT / "test_results" / "analysis_results_phi.csv"      #csv file to save the output test results
 # OUTPUT = ROOT / "test_results" / "analysis_results_chroma_only.csv"      #csv file to save the output test results
 # OUTPUT = ROOT / "test_results" / "analysis_results_llama3_1.csv"      #csv file to save the output test results
 # OUTPUT = ROOT / "test_results" / "analysis_results_simple.csv"      #csv file to save the output test results
+OUTPUT = ROOT / "test_results" / "analysis_results_multiagent.csv"      #csv file to save the output test results
 
 
 app = FastAPI(title="EOV-PULSE Test API")
@@ -41,7 +42,7 @@ def save_results(results):
             writer.writerow([
                 r.filename,
                 datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                r.extracted_data if r.status == "PASS" else "",
+                r.extracted_data[0].get("summary") if r.status == "PASS" else "",
                 r.guideline_context if r.status == "PASS" else "",
                 r.final_plan if r.status == "PASS" else r.error
             ])

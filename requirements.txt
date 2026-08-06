@@ -16,9 +16,14 @@ python-dotenv         # To manage environment variables (if needed)
 reportlab             # to generate pdf
 fastapi               # To create the API server
 langchain_community
+langchain_google_genai
+langchain_groq
 langgraph               # For visualizing the RAG graph
 rapidfuzz               # for similarity between strings
 streamlit               # For creating a simple UI to interact with your RAG system
 streamlit-folium        # For displaying maps in the Streamlit UI 
+streamlit_geolocation  
+torchvision
 geopy                   # For calculating distances between locations
 spacy                   #Location extraction from user queries
+google-cloud-service-usage      # to get tokens and request usage data

@@ -35,7 +35,7 @@ services:
     build: .
     container_name: rag-ingestor
     volumes:
-      - ./app/data:/app/data
+      - ./data:/app/data
       - ./chroma_data:/app/chroma_data # Ensure ingestor can access Chroma's data directory
     command: ["python", "ingest.py"] # Run your data ingestion script
     environment:
