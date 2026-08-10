@@ -12,7 +12,8 @@ class LLMManager:
 
     # Normal prompts
     def invoke(self, messages):
-        return self.scheduler.invoke(messages)
+        response,_=self.scheduler.invoke(messages)
+        return response.content
 
     async def ainvoke(self, messages):
         return await self.scheduler.ainvoke(messages)
@@ -24,7 +25,7 @@ class LLMManager:
         previous_summary = ""
 
         while remaining_pages:
-            safe_context = int(model.config.context_window * 0.80)
+            safe_context = int(model.config.context_window * 0.70)
             chunker = TextChunker(safe_context)
             chunks = chunker.chunk(remaining_pages)
             print("len of chunks: ", len(chunks))
@@ -76,7 +77,7 @@ class LLMManager:
 
     def invoke_auto(self,pages,system_prompt):
         model = self.scheduler.choose()
-        safe_context = int(model.config.context_window * 0.80)
+        safe_context = int(model.config.context_window * 0.70)
 
         # Estimate total document size
         total_tokens = sum(TextChunker.estimate_tokens(page)for page in pages)

@@ -70,7 +70,8 @@ from fastapi.staticfiles import StaticFiles
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
-from app.backend.graph_multiagent_heavy import clinical_agent          # noqa: E402
+# from app.backend.graph_multiagent_heavy import clinical_agent          # noqa: E402
+from app.backend.graph_multiagent_heavy_1 import clinical_agent          # noqa: E402
 from app.backend.map_scraper import extract_specialists, fetch_local_doctors  # noqa: E402
 from testing.clinical import extract_tables_and_text                    # noqa: E402
 
@@ -137,7 +138,12 @@ def geocode(lat: float = Form(...), lng: float = Form(...)):
     reverse_geocode() cached function in the Streamlit app."""
     try:
         geo = geolocator.reverse(f"{lat}, {lng}", timeout=10)
-        return {"address": geo.address if geo else ""}
+        if geo:
+            addr = geo.raw.get("address", {})
+            if addr:
+                suburb= addr.get("suburb") if addr.get("suburb") else ""
+                city = addr.get("city") or addr.get("town") or addr.get("village") if addr.get("city") or addr.get("town") or addr.get("village") else ""
+                return {"address": f"{suburb},{city}"}
     except Exception as exc:
         raise HTTPException(status_code=502, detail=f"Geocoding service unavailable: {exc}")
 
@@ -168,6 +174,7 @@ async def analyze(
         raise HTTPException(status_code=500, detail=f"Analysis failed: {exc}")
 
     try:
+        print("type of result in analyze function is:::::::",type(result))
         specialists = extract_specialists(result.get("final_plan", {}) if isinstance(result, dict) else {})
     except Exception:
         specialists = []

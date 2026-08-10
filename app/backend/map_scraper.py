@@ -9,14 +9,17 @@ import os
 SERP_API_KEY =os.getenv("SERP_API_KEY")
 
 def fetch_local_doctors(specialty, location, user_coordinates):
+    print("user coordinates areeee::::::::::::",user_coordinates)
+    print(type(user_coordinates))
     print(f"Querying SerpApi REST Endpoint for: '{specialty} clinic near {location}'...")
     
     # SerpApi's direct web routing parameters
     url = "https://serpapi.com/search"
     params = {
         "engine": "google_maps",
-        "q": f"{specialty} clinic in {location}",
+        "q": f"{specialty} clinic near {location}",
         "hl": "en",
+        "ll": f"{user_coordinates[0]},{user_coordinates[1]}",
         "api_key": SERP_API_KEY
     }
 
@@ -36,9 +39,8 @@ def fetch_local_doctors(specialty, location, user_coordinates):
             return []
             
         raw_listings = results["local_results"]
-        # print(json.dumps(raw_listings[0], indent=2))
 
-        no_of_doctors=5
+        no_of_doctors=10
         distance_threshold=5    #in km
         #filtering list based on distance threshold
         valid_listings = [item for item in raw_listings if round(geodesic(user_coordinates,(item.get("gps_coordinates", {}).get("latitude"), item.get("gps_coordinates", {}).get("longitude"))).km,2) <= distance_threshold]
@@ -66,13 +68,11 @@ def fetch_local_doctors(specialty, location, user_coordinates):
         return []
 
 # Run validation lookup trace
-# doctors_json_payload = fetch_local_doctors(specialty="Dermatologist", location="Erandwane, Pune")
-
-import json
 
 def extract_specialists(llm_response):
     if llm_response is None:
         return []
+    # print("llm response(final plan) is::::::::",llm_response)
     if isinstance(llm_response, str):
         llm_response = json.loads(llm_response)
 
@@ -80,10 +80,12 @@ def extract_specialists(llm_response):
     if isinstance(llm_response, dict):
         llm_response = [llm_response]
 
-    specialists = [
-        item.get("specialist","")
-        for item in llm_response
-    ]
+    print("type of llm response in extract specialists is::::::::", type(llm_response))
+    # normal multiagent
+    specialists = [item.get("specialist","") for item in llm_response]
+    print("specialists in map_scraper.py::::::::",specialists)
+    #heavy multiagent
+    # specialists=llm_response.get("specialists")
 
     specialists = [
         s for s in specialists
