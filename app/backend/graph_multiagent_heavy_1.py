@@ -2,7 +2,7 @@ import json
 from typing import TypedDict
 from dotenv import load_dotenv
 from langgraph.graph import StateGraph, END
-
+from json_repair import repair_json
 from app.llm.manager import invoke_auto
 import asyncio
 
@@ -33,7 +33,7 @@ You are a clinical decision support assistant.
 Analyze the entire clinical report below.
 
 Tasks:
-1. Extract exactly 5 key laboratory and clinically relevant findings from the entire report .
+1. Extract exactly 3 normal and 2 abnormal key laboratory and clinically relevant findings from the entire report .
 2. Recommend the single most appropriate medical specialist, if indicated.
 3. Generate a concise follow-up plan (50-100 words).
 
@@ -56,7 +56,7 @@ Schema:
 {{
     "extracted_data": [
         {{
-            "summary": "Narrative paragraph describing the report."(around 50 words),
+            "summary": "Narrative paragraph describing the report."(around 100 words),
             "patient": {{"age": 39, "sex": "male"}},
             "report_date": "28 July 2026",
             "parameters": [
@@ -129,7 +129,8 @@ Schema:
         )
 
     try:
-        labs = json.loads(text)
+        labs = repair_json(text, return_objects=True)
+        # labs = json.loads(text)
 
     except Exception as e:
         raise Exception(

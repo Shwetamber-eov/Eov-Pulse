@@ -8,7 +8,7 @@ import chromadb
 import os
 from app.llm.manager import invoke_auto,invoke
 import asyncio
-
+from json_repair import repair_json
 load_dotenv()
 
 CHROMA_HOST = os.getenv("CHROMA_HOST", "localhost")
@@ -295,7 +295,8 @@ def clinical_reasoning_node(state: AgentState):
     
     try:
         print(f"\ntype of text is:::::::::::{type(text)}")
-        reasoning = json.loads(text)
+        reasoning = repair_json(text, return_objects=True)
+        # reasoning = json.loads(text)
         print("type of labs is:::::::::: ",type(reasoning))
     except Exception as e:
         raise Exception(

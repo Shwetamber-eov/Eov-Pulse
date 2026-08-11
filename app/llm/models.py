@@ -42,26 +42,7 @@ class ModelConfig:
 # ============================================================
 
 MODEL_CONFIGS = [
-    # ---------------- Google ---------------- #
-    ModelConfig(
-        name="gemini36",
-        provider="google",
-        model_name="gemini-3.6-flash",   # Replace if using a newer model ID
-        context_window=250_000,
-        rpm=5,
-        rpd=20,
-        priority=2,
-    ),
-    ModelConfig(
-        name="gemini35",
-        provider="google",
-        model_name="gemini-3.5-flash",   # Replace if using a newer model ID
-        context_window=250_000,
-        rpm=5,
-        rpd=20,
-        priority=2,
-    ),
-
+    # # ---------------- Google ---------------- #
     ModelConfig(
         name="gemini35lite",
         provider="google",
@@ -70,6 +51,7 @@ MODEL_CONFIGS = [
         rpm=15,
         rpd=500,
         priority=1,
+        temperature=0
     ),
 
     ModelConfig(
@@ -79,8 +61,30 @@ MODEL_CONFIGS = [
         context_window=250_000,
         rpm=15,
         rpd=500,
-        priority=1,
+        priority=2,
+        temperature=0
     ),
+    ModelConfig(
+        name="gemini36",
+        provider="google",
+        model_name="gemini-3.6-flash",   # Replace if using a newer model ID
+        context_window=250_000,
+        rpm=5,
+        rpd=20,
+        priority=2,
+        temperature=0
+    ),
+    ModelConfig(
+        name="gemini35",
+        provider="google",
+        model_name="gemini-3.5-flash",   # Replace if using a newer model ID
+        context_window=250_000,
+        rpm=5,
+        rpd=20,
+        priority=1,
+        temperature=0
+    ),
+
     ModelConfig(
         name="llama3.3",
         provider="groq",
@@ -89,6 +93,7 @@ MODEL_CONFIGS = [
         rpm=30,
         rpd=1_000,
         priority=3,
+        temperature=0
     ),
 
     # ---------------- Gemma ---------------- #
@@ -101,6 +106,7 @@ MODEL_CONFIGS = [
         rpd=14_400,
         tpm=16_000,
         priority=4,
+        temperature=0
     ),
 
     ModelConfig(
@@ -112,6 +118,7 @@ MODEL_CONFIGS = [
         rpd=14_400,
         tpm=16_000,
         priority=4,
+        temperature=0
     ),
 ]
 
