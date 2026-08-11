@@ -19,7 +19,7 @@ def fetch_local_doctors(specialty, location, user_coordinates):
         "engine": "google_maps",
         "q": f"{specialty} clinic near {location}",
         "hl": "en",
-        "ll": f"{user_coordinates[0]},{user_coordinates[1]}",
+        # "ll": f"@{user_coordinates[0]},{user_coordinates[1]}",
         "api_key": SERP_API_KEY
     }
 
