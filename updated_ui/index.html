@@ -19,7 +19,9 @@
     --font-mono:'IBM Plex Mono',SFMono-Regular,Menlo,monospace;
   }
   *,*::before,*::after{box-sizing:border-box;}
-  body{margin:0;background:var(--white);color:var(--gray-100);font-family:var(--font-sans);-webkit-font-smoothing:antialiased;}
+  body{margin:0;background:var(--white);color:var(--gray-100);font-family:var(--font-sans);-webkit-font-smoothing:antialiased;min-height: 100vh;
+    display: flex;
+    flex-direction: column;}
   a{color:var(--ibm-blue);}
   button{font-family:var(--font-sans);}
   .wrap{max-width:1392px;margin:0 auto;padding:0 24px;}
@@ -34,18 +36,20 @@
   .btn-ghost{height:32px;padding:0 12px;border:none;background:transparent;color:var(--ibm-blue);font-size:14px;cursor:pointer;}
   .btn-ghost:hover{background:var(--gray-10);}
 
-  main{max-width:1392px;margin:0 auto;padding:40px 24px 96px;}
+  main{width: 100%;
+    max-width: 90%;margin:0 auto;padding:40px 24px 96px;flex: 1;box-sizing: border-box;}
   .eyebrow{font-size:14px;letter-spacing:.16px;color:var(--gray-70);margin-bottom:12px;}
   h1.display{font-size:42px;font-weight:300;line-height:1.2;margin:0 0 16px;}
   .subtitle{font-size:18px;line-height:1.5;color:var(--gray-70);margin:0 0 40px;max-width:64ch;}
+  .upload-container{max-width: 50%;margin: 0 auto;}
 
-  .btn{display:inline-flex;align-items:center;gap:10px;height:40px;padding:0 16px;font-size:14px;letter-spacing:.16px;cursor:pointer;border:none;}
-  .btn-primary{background:var(--ibm-blue);color:#fff;}
+  .btn{display:inline-flex;align-items:center;gap:10px;height: 40px;padding: 10px 20px;font-size:18px;letter-spacing:.16px;cursor:pointer;border:none;}
+  .btn-primary{background:var(--ibm-blue);color:#fff;min-height: 40px;padding: 15px 20px;}
   .btn-primary:hover{background:var(--blue-hover);}
   .btn-primary:disabled{background:var(--gray-20);color:var(--gray-50);cursor:not-allowed;}
-  .btn-outline{background:#fff;border:1px solid var(--ibm-blue);color:var(--ibm-blue);}
+  .btn-outline{background:#fff;border:1px solid var(--ibm-blue);color:var(--ibm-blue);min-height: 40px;padding: 15px 15px;min-width: 150px}
   .btn-outline:hover{background:var(--ibm-blue);color:#fff;}
-  .btn-dark{background:#fff;border:1px solid var(--gray-100);color:var(--gray-100);}
+  .btn-dark{background:#fff;border:1px solid var(--gray-100);color:var(--gray-100);min-height: 40px;padding: 15px 20px;}
   .btn-dark:hover{background:var(--gray-10);}
 
   /* upload screen */
@@ -60,10 +64,9 @@
   .loc-status{font-size:14px;color:var(--gray-70);}
   .analyze-row{margin-top:40px;display:flex;align-items:center;gap:24px;flex-wrap:wrap;}
   .analyze-hint{font-size:13px;color:var(--gray-50);max-width:34ch;}
-
+  
   /* analyzing */
-  .steps{border-top:1px solid var(--gray-20);}
-  .step{display:flex;align-items:center;gap:16px;padding:20px 0;border-bottom:1px solid var(--gray-20);}
+  .steps {width: 100%;max-width: 500px;border-top: 1px solid var(--gray-20);}  .step{display:flex;align-items:center;gap:16px;padding:20px 0;border-bottom:1px solid var(--gray-20);}
   .step-dot{width:16px;height:16px;flex:none;border-radius:50%;border:2px solid var(--gray-20);}
   .step-dot.active{border-color:var(--gray-20);border-top-color:var(--ibm-blue);animation:spin .8s linear infinite;}
   .step-dot.done{border-color:var(--green);}
@@ -71,6 +74,7 @@
   .step-label.on{color:var(--gray-100);}
   .step-note{font-size:13px;color:var(--gray-50);}
   @keyframes spin{to{transform:rotate(360deg);}}
+  .analyzing-page {min-height: calc(100vh - 80px);display: flex;flex-direction: column;justify-content: center;align-items: center;text-align: center;}
 
   /* results header */
   .results-top{display:flex;align-items:flex-end;justify-content:space-between;gap:32px;flex-wrap:wrap;margin-bottom:32px;}
@@ -92,13 +96,48 @@
   .tab-btn.active{border-bottom-color:var(--gray-100);color:var(--gray-100);font-weight:600;}
 
   /* analysis tab */
+  .flag-row{
+      display:grid;
+      grid-template-columns:220px 1fr;
+      gap:20px;
+      align-items:start;
+      padding:12px 0;
+      border-bottom:1px solid var(--gray-20);
+      font-size:14px;
+  }
+
+  .flag-row:last-child{
+      border-bottom:none;
+  }
+
+  .flag-system{
+      font-weight:600;
+      color:var(--gray-100);
+  }
+
+  .flag-detail{
+      line-height:1.5;
+      white-space:normal;
+      word-break:break-word;
+  }
+  .flag-detail.good{
+      color:#24a148;   /* IBM Carbon Green 60 */
+      font-weight:500;
+  }
+
+  .flag-detail.bad{
+      color:#da1e28;   /* IBM Carbon Red 60 */
+      font-weight:500;
+  }
+
+
   .analysis-grid{display:grid;grid-template-columns:2fr 1fr;gap:32px;align-items:start;margin-bottom:48px;}
   .panel{padding:24px;border:1px solid var(--gray-20);}
   .panel.fill{background:var(--gray-10);border:none;}
   .panel-title{font-size:12px;letter-spacing:.32px;color:var(--gray-70);margin-bottom:12px;}
   .narrative{font-size:18px;line-height:1.5;margin:0;}
-  .flag-row{display:flex;align-items:baseline;justify-content:space-between;gap:16px;padding:10px 0;border-bottom:1px solid var(--gray-20);font-size:14px;}
-  .flag-row:last-child{border-bottom:none;}
+  /* .flag-row{display:flex;align-items:baseline;justify-content:space-between;gap:16px;padding:10px 0;border-bottom:1px solid var(--gray-20);font-size:14px;}
+  .flag-row:last-child{border-bottom:none;} */
 
   .section-head{display:flex;align-items:flex-end;justify-content:space-between;gap:24px;flex-wrap:wrap;margin-bottom:20px;}
   h2.section-title{font-size:24px;font-weight:400;margin:0;}
@@ -166,10 +205,19 @@
   .spec-match{font-size:13px;margin-top:10px;}
   .spec-bottom{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:14px;}
   .spec-slot{font-size:13px;color:var(--gray-70);}
-  #map{height:620px;border:1px solid var(--gray-20);background:var(--gray-10);}
+  #map{height:620px;border:1px solid var(--gray-20);background:var(--gray-10);touch-action: pinch-zoom;}
   .map-legend{display:flex;align-items:center;gap:24px;margin-top:12px;font-size:12px;letter-spacing:.32px;color:var(--gray-70);}
   .map-legend span{display:inline-flex;align-items:center;gap:8px;}
   .swatch{width:10px;height:10px;display:block;}
+  .spec-rating-row { margin-top: 4px; font-size: 13px; color: #525252; }
+  .spec-rating { font-weight: 500; }
+  .spec-contact { display:flex; align-items:center; gap:12px; margin-top:6px; font-size:13px; color:#525252; }
+  .open-badge { font-size:12px; font-weight:500; padding:2px 8px; border-radius:10px; }
+  .open-badge.open    { background:#defbe6; color:#0e6027; }
+  .open-badge.closed  { background:#fff1f1; color:#a2191f; }
+  .open-badge.unknown { background:#f4f4f4; color:#6f6f6f; }
+  .spec-directions { font-size:14px; color:var(--ibm-blue); text-decoration:none; }
+  .spec-directions:hover { text-decoration:underline; }
 
   .empty{padding:48px 24px;text-align:center;color:var(--gray-70);border:1px solid var(--gray-20);font-size:14px;}
   .error-banner{background:var(--red-bg);border:1px solid var(--red);color:#750e13;padding:16px 20px;margin-bottom:24px;font-size:14px;}
@@ -348,47 +396,49 @@ function renderHeader(){
 
 function viewUpload(){
   return `
-    <div class="eyebrow">New analysis</div>
-    <h1 class="display">Upload a lab report to begin.</h1>
-    <p class="subtitle">EOV-PULSE reads the report, compares every parameter against WHO and guideline reference ranges, and returns a status summary with follow-up steps.</p>
+    <div class="upload-container">
+      <div class="eyebrow">New analysis</div>
+      <h1 class="display">Upload a lab report to begin.</h1>
+      <p class="subtitle">EOV-PULSE reads the report, compares every parameter against WHO and guideline reference ranges, and returns a status summary with follow-up steps.</p>
 
-    ${state.error ? `<div class="error-banner">${esc(state.error)}</div>` : ''}
+      ${state.error ? `<div class="error-banner">${esc(state.error)}</div>` : ''}
 
-    <div class="field-label">Patient lab report (PDF)</div>
-    ${!state.file ? `
-      <div class="dropzone">
-        <label class="btn-dark" for="fileInput" style="cursor:pointer;">
-          <svg viewBox="0 0 32 32" width="16" height="16" fill="currentColor"><path d="M25.7,9.3l-7-7C18.5,2.1,18.3,2,18,2H8C6.9,2,6,2.9,6,4v24c0,1.1,0.9,2,2,2h16c1.1,0,2-0.9,2-2V10C26,9.7,25.9,9.5,25.7,9.3z M18,4.4l5.6,5.6H18V4.4z M24,28H8V4h8v6c0,1.1,0.9,2,2,2h6V28z"/><rect x="10" y="22" width="12" height="2"/><rect x="10" y="16" width="12" height="2"/></svg>
-          Choose file
-        </label>
-        <input id="fileInput" type="file" accept="application/pdf" style="display:none" onchange="onFileSelected(event)" />
-        <span style="font-size:14px;color:var(--gray-50);">or drop it here · PDF only</span>
-      </div>` : `
-      <div class="dropzone-file">
-        <span class="file-icon">
-          <svg viewBox="0 0 32 32" width="20" height="20" fill="currentColor"><path d="M25.7,9.3l-7-7C18.5,2.1,18.3,2,18,2H8C6.9,2,6,2.9,6,4v24c0,1.1,0.9,2,2,2h16c1.1,0,2-0.9,2-2V10C26,9.7,25.9,9.5,25.7,9.3z M18,4.4l5.6,5.6H18V4.4z M24,28H8V4h8v6c0,1.1,0.9,2,2,2h6V28z"/><rect x="10" y="22" width="12" height="2"/><rect x="10" y="16" width="12" height="2"/></svg>
-        </span>
-        <span style="flex:1;">
-          ${esc(state.fileName)}
-          <small>${esc(state.fileSizeLabel)} · PDF</small>
-        </span>
-        <button class="remove-btn" onclick="removeFile()" aria-label="Remove file">
-          <svg viewBox="0 0 32 32" width="16" height="16" fill="currentColor"><polygon points="17.4141 16 24 9.4141 22.5859 8 16 14.5859 9.4143 8 8 9.4141 14.5859 16 8 22.5859 9.4143 24 16 17.4141 22.5859 24 24 22.5859 17.4141 16"/></svg>
+      <div class="field-label">Patient lab report (PDF)</div>
+      ${!state.file ? `
+        <div class="dropzone">
+          <label class="btn-dark" for="fileInput" style="cursor:pointer;">
+            <svg viewBox="0 0 32 32" width="16" height="16" fill="currentColor"><path d="M25.7,9.3l-7-7C18.5,2.1,18.3,2,18,2H8C6.9,2,6,2.9,6,4v24c0,1.1,0.9,2,2,2h16c1.1,0,2-0.9,2-2V10C26,9.7,25.9,9.5,25.7,9.3z M18,4.4l5.6,5.6H18V4.4z M24,28H8V4h8v6c0,1.1,0.9,2,2,2h6V28z"/><rect x="10" y="22" width="12" height="2"/><rect x="10" y="16" width="12" height="2"/></svg>
+            Choose file
+          </label>
+          <input id="fileInput" type="file" accept="application/pdf" style="display:none" onchange="onFileSelected(event)" />
+          <span style="font-size:14px;color:var(--gray-50);">or drop it here · PDF only</span>
+        </div>` : `
+        <div class="dropzone-file">
+          <span class="file-icon">
+            <svg viewBox="0 0 32 32" width="20" height="20" fill="currentColor"><path d="M25.7,9.3l-7-7C18.5,2.1,18.3,2,18,2H8C6.9,2,6,2.9,6,4v24c0,1.1,0.9,2,2,2h16c1.1,0,2-0.9,2-2V10C26,9.7,25.9,9.5,25.7,9.3z M18,4.4l5.6,5.6H18V4.4z M24,28H8V4h8v6c0,1.1,0.9,2,2,2h6V28z"/><rect x="10" y="22" width="12" height="2"/><rect x="10" y="16" width="12" height="2"/></svg>
+          </span>
+          <span style="flex:1;">
+            ${esc(state.fileName)}
+            <small>${esc(state.fileSizeLabel)} · PDF</small>
+          </span>
+          <button class="remove-btn" onclick="removeFile()" aria-label="Remove file">
+            <svg viewBox="0 0 32 32" width="16" height="16" fill="currentColor"><polygon points="17.4141 16 24 9.4141 22.5859 8 16 14.5859 9.4143 8 8 9.4141 14.5859 16 8 22.5859 9.4143 24 16 17.4141 22.5859 24 24 22.5859 17.4141 16"/></svg>
+          </button>
+        </div>`}
+
+      <div class="loc-row">
+        <button class="btn-outline" onclick="useMyLocation()">Use my location</button>
+        <span class="loc-status">${esc(locationStatusLabel())}</span>
+      </div>
+
+      <div class="analyze-row">
+        <button class="btn-primary" ${!state.file ? 'disabled' : ''} onclick="analyzeReport()">
+          <span>Analyse report</span>
+          <svg viewBox="0 0 32 32" width="16" height="16" fill="currentColor"><polygon points="18 6 16.57 7.393 24.15 15 4 15 4 17 24.15 17 16.57 24.573 18 26 28 16 18 6"/></svg>
         </button>
-      </div>`}
-
-    <div class="loc-row">
-      <button class="btn-outline" onclick="useMyLocation()">Use my location</button>
-      <span class="loc-status">${esc(locationStatusLabel())}</span>
-    </div>
-
-    <div class="analyze-row">
-      <button class="btn-primary" ${!state.file ? 'disabled' : ''} onclick="analyzeReport()">
-        <span>Analyse report</span>
-        <svg viewBox="0 0 32 32" width="16" height="16" fill="currentColor"><polygon points="18 6 16.57 7.393 24.15 15 4 15 4 17 24.15 17 16.57 24.573 18 26 28 16 18 6"/></svg>
-      </button>
-      <span class="analyze-hint">${state.file ? 'Typically takes under a minute.' : 'Attach a PDF report to continue.'}</span>
-    </div>
+        <span class="analyze-hint">${state.file ? 'Typically takes under a minute.' : 'Attach a PDF report to continue.'}</span>
+      </div>
+    <div/>
   `;
 }
 
@@ -405,19 +455,25 @@ const STEP_LABELS = [
   'Comparing against WHO and guideline ranges',
   'Generating follow-up recommendations',
 ];
-function viewAnalyzing(){
+function viewAnalyzing() {
   const rows = STEP_LABELS.map((label, i) => {
-    const done = state.analyzeStep > i, active = state.analyzeStep === i;
-    return `<div class="step">
-      <div class="step-dot ${done ? 'done' : active ? 'active' : ''}"></div>
-      <div class="step-label ${done || active ? 'on' : ''}">${label}</div>
-      <div class="step-note">${done ? 'Done' : active ? 'Working' : 'Queued'}</div>
-    </div>`;
+    const done = state.analyzeStep > i,
+          active = state.analyzeStep === i;
+
+    return `
+      <div class="step">
+        <div class="step-dot ${done ? 'done' : active ? 'active' : ''}"></div>
+        <div class="step-label ${done || active ? 'on' : ''}">${label}</div>
+        <div class="step-note">${done ? 'Done' : active ? 'Working' : 'Queued'}</div>
+      </div>`;
   }).join('');
+
   return `
-    <div class="eyebrow">${esc(state.fileName)}</div>
-    <h1 class="display">Analysing report…</h1>
-    <div class="steps">${rows}</div>
+    <div class="analyzing-page">
+      <div class="eyebrow">${esc(state.fileName)}</div>
+      <h1 class="display">Analysing report…</h1>
+      <div class="steps">${rows}</div>
+    </div>
   `;
 }
 
@@ -486,10 +542,23 @@ function patientLine(r, total){
 
 function analysisTab(r){
   const flags = getFlaggedSystems(r);
-  const flagRows = flags.length ? flags.map(f => `
-    <div class="flag-row"><span>${esc(f.name||'')}</span><span style="color:${f.status==='good'?'#24a148':'#da1e28'};font-weight:500;">${esc(f.detail||'')}</span></div>
-  `).join('') : `<div class="flag-row"><span style="color:var(--gray-50);">No flagged systems returned.</span></div>`;
 
+  const flagRows = flags.length
+    ? flags.map(f => `
+        <div class="flag-row">
+          <div class="flag-system">${esc(f.name || '')}</div>
+          <div class="flag-detail ${f.status === 'good' ? 'good' : 'bad'}">
+            ${esc(f.detail || '')}
+          </div>
+        </div>
+      `).join('')
+    : `
+      <div class="flag-row">
+        <div class="flag-system" style="grid-column:1 / -1;color:var(--gray-50);">
+          No flagged systems returned.
+        </div>
+      </div>
+    `;
   const params = getParameters(r);
   const counts = getStatusCounts(r);
   const shown = state.labFilter === 'out' ? params.filter(p => p.status==='elevated'||p.status==='high'||p.status==='low')
@@ -605,38 +674,62 @@ function planTab(r){
   `;
 }
 
+function gmapDirectionsUrl(name, address) {
+  const q = encodeURIComponent(`${name || ''}, ${address || ''}`);
+  return `https://google.com/maps/search/?api=1&query=${q}`;
+}
+ 
+function openBadge(open_state) {
+  if (open_state === true)  return `<span class="open-badge open">🟢 Open now</span>`;
+  if (open_state === false) return `<span class="open-badge closed">🔴 Closed</span>`;
+  return `<span class="open-badge unknown">Hours unknown</span>`;
+}
+ 
 function specialistsTab(){
   const list = state.nearbySpecialists || [];
   const specialties = [...new Set(list.map(s => s.specialty).filter(Boolean))];
   const filtered = state.specialtyFilter === 'all' ? list : list.filter(s => s.specialty === state.specialtyFilter);
-
+ 
   const filterChips = `
     <div class="seg">
       <button class="${state.specialtyFilter==='all'?'on':''}" onclick="setSpecialtyFilter('all')">All ${list.length}</button>
       ${specialties.map(sp => `<button class="${state.specialtyFilter===sp?'on':''}" onclick="setSpecialtyFilter('${esc(sp).replace(/'/g,"\\'")}')">${esc(sp)}</button>`).join('')}
     </div>`;
-
-  const listHTML = filtered.length ? filtered.map((s, i) => {
+ 
+  const listHTML = filtered.length ? filtered.map((s) => {
     const idx = list.indexOf(s);
+    const rating = (typeof s.rating === 'number')
+      ? `<span class="spec-rating">⭐ ${s.rating}${s.reviews_count != null ? ` · ${s.reviews_count} reviews` : ''}</span>`
+      : '';
+    const directionsUrl = (s.lat && s.lng) ? gmapDirectionsUrl(s.name, s.address) : null;
+ 
     return `
-      <div class="spec-card ${idx===state.selectedIdx?'selected':''}" onclick="selectSpecialist(${idx})">
+      <div id="spec-card-${idx}" class="spec-card ${idx===state.selectedIdx?'selected':''}" onclick="selectSpecialist(${idx})">
         <span class="spec-pin">${idx+1}</span>
         <div>
           <div class="spec-top"><span class="spec-name">${esc(s.name||'Specialist')}</span><span class="spec-dist">${esc(s.distance||'')}</span></div>
           ${s.specialty ? `<div style="margin-top:8px;">${badge(esc(s.specialty),'#002d9c','#d0e2ff')}</div>` : ''}
+          ${rating ? `<div class="spec-rating-row">${rating}</div>` : ''}
           <div class="spec-addr">${esc(s.address||'')}</div>
+          <div class="spec-contact">
+            ${s.phone ? `<span>☎️ ${esc(s.phone)}</span>` : ''}
+            ${openBadge(s.open_state)}
+          </div>
           ${s.matched_for ? `<div class="spec-match"><b>Matched for:</b> ${esc(s.matched_for)}</div>` : ''}
-          <div class="spec-bottom"><span class="spec-slot">${s.next_slot ? 'Next slot: ' + esc(s.next_slot) : ''}</span>${(s.lat&&s.lng)?'<span style="font-size:14px;color:var(--ibm-blue);">Get directions</span>':''}</div>
+          <div class="spec-bottom">
+            <span class="spec-slot">${s.next_slot ? 'Next slot: ' + esc(s.next_slot) : ''}</span>
+            ${directionsUrl ? `<a href="${directionsUrl}" target="_blank" rel="noopener" class="spec-directions" onclick="event.stopPropagation()">Get directions</a>` : ''}
+          </div>
         </div>
       </div>`;
   }).join('') : `<div class="empty">No nearby specialists were returned yet.</div>`;
-
+ 
   return `
     <h2 class="section-title" style="margin-bottom:8px;">Specialists near you</h2>
     <div class="patient-line" style="margin-bottom:20px;">Matched to your flagged parameters${state.address ? ' · near ' + esc(state.address.split(',')[0]) : ''}</div>
     <div class="section-head">${filterChips}</div>
     <div class="spec-layout">
-      <div class="spec-list">${listHTML}</div>
+      <div class="spec-list" id="spec-list">${listHTML}</div>
       <div>
         <div id="map"></div>
         <div class="map-legend">
@@ -648,16 +741,49 @@ function specialistsTab(){
     </div>
   `;
 }
-
+ 
 /* ---------------------------------------------------------------------
-   MAP (Leaflet)
+   SELECTION — mirrors the Streamlit behaviour where clicking a marker
+   updates `selected_doctor_idx` and scrolls the directory to it, and
+   vice versa for clicking a card.
+--------------------------------------------------------------------- */
+function selectSpecialist(idx){
+  state.selectedIdx = idx;
+  render(); // re-renders specialistsTab() + re-inits the map via your existing render pipeline
+ 
+  // Scroll the directory list to the selected card
+  const card = document.getElementById(`spec-card-${idx}`);
+  if (card) card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+ 
+  // Pan the map to the marker and open its popup
+  const s = (state.nearbySpecialists || [])[idx];
+  if (leafletMap && s && typeof s.lat === 'number' && typeof s.lng === 'number') {
+    leafletMap.panTo([s.lat, s.lng]);
+    const marker = mapMarkers && mapMarkers[idx];
+    if (marker) marker.openPopup();
+  }
+}
+ 
+/* ---------------------------------------------------------------------
+   MAP (Leaflet) — equivalent of the folium map in the Streamlit version
 --------------------------------------------------------------------- */
 function initOrUpdateMap(){
   const el = document.getElementById('map');
   if (!el || !window.L) return;
+ 
+  // render() rebuilds the tab's innerHTML on every selection/filter change,
+  // which creates a NEW #map node each time. `leafletMap` would still be
+  // bound to the old, now-detached node, so the new div renders blank.
+  // Detect that mismatch and tear the stale instance down first.
+  if (leafletMap && leafletMap.getContainer() !== el) {
+    leafletMap.remove();
+    leafletMap = null;
+    mapMarkers = {};
+  }
+ 
   if (!leafletMap) {
     const home = state.coords ? [state.coords.lat, state.coords.lng] : [20.5937, 78.9629];
-    leafletMap = L.map(el, { scrollWheelZoom: false }).setView(home, state.coords ? 13 : 5);
+    leafletMap = L.map(el, { scrollWheelZoom: true, touchZoom: true,doubleClickZoom: true,boxZoom: true,dragging: true,zoomControl: true }).setView(home, state.coords ? 13 : 5);
     L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
       subdomains: 'abcd', maxZoom: 19, attribution: '&copy; OpenStreetMap contributors &copy; CARTO',
     }).addTo(leafletMap);
@@ -671,19 +797,21 @@ function initOrUpdateMap(){
   (state.nearbySpecialists||[]).forEach((s, i) => {
     if (typeof s.lat !== 'number' || typeof s.lng !== 'number') return;
     const icon = pinIcon(i+1, i===state.selectedIdx);
+    const openLine = s.open_state === true ? '🟢 Open now' : s.open_state === false ? '🔴 Closed' : 'Hours unknown';
+    const ratingLine = (typeof s.rating === 'number') ? `⭐ ${s.rating}${s.reviews_count != null ? ` · ${s.reviews_count} reviews` : ''}<br>` : '';
     const m = L.marker([s.lat, s.lng], { icon }).addTo(leafletMap)
-      .bindPopup(`<strong>${esc(s.name||'')}</strong><br>${esc(s.specialty||'')} · ${esc(s.distance||'')}<br>${esc(s.address||'')}`);
+      .bindPopup(`<strong>${esc(s.name||'')}</strong><br>${esc(s.specialty||'')} · ${esc(s.distance||'')}<br>${ratingLine}${esc(s.address||'')}<br>${openLine}`);
     m.on('click', () => selectSpecialist(i));
     mapMarkers[i] = m;
   });
   setTimeout(() => leafletMap.invalidateSize(), 60);
 }
+ 
 function pinIcon(n, on){
   const bg = on ? '#0f62fe' : '#161616';
   return L.divIcon({ className:'', iconSize:[24,24], iconAnchor:[12,12],
     html:`<div style="width:24px;height:24px;background:${bg};color:#fff;font-family:'IBM Plex Sans',sans-serif;font-size:12px;display:flex;align-items:center;justify-content:center;">${n}</div>` });
 }
-
 /* ---------------------------------------------------------------------
    ACTIONS
 --------------------------------------------------------------------- */
