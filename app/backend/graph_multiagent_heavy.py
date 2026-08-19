@@ -66,7 +66,7 @@ Schema:
 {{
     "extracted_data": [
         {{
-            "summary": "Narrative paragraph describing the report...",
+            "summary": "Narrative paragraph describing the report",
             "patient": {{"age": 39, "sex": "male"}},
             "report_date": "28 July 2026",
             "parameters": [
@@ -114,7 +114,8 @@ Schema:
         )
 
     try:
-        labs = json.loads(text)
+        labs = repair_json(text, return_objects=True)
+        # labs = json.loads(text)
         print("type of labs is:::::::::: ",type(labs))
     except Exception as e:
         raise Exception(
