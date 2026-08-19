@@ -1,5 +1,6 @@
 uvicorn
 pydantic
+json_repair
 langchain-chroma
 chromadb
 sentence-transformers
