@@ -1,20 +1,18 @@
 services:
   chromadb:
-    image: chromadb/chroma:${CHROMA_VERSION}
+    image: chromadb/chroma:${CHROMA_VERSION:-latest}
     container_name: chroma-server
     volumes:
-      # 1. Persist your data
       - ./chroma_data/chroma:/chroma
-      # 2. Link your separate config file into the container
-      - ./config.yaml:/config.yaml 
+      - ./config.yaml:/config.yaml
     ports:
-      - "8001:8000" # Maps local port 8001 to Chroma's 8000
+      - "8001:8000"
     environment:
       - CHROMA_CONFIG_PATH=/config.yaml
     restart: always
     networks:
       - clinical-net
-  
+
   ollama:
     image: ollama/ollama:latest
     container_name: ollama-server
@@ -23,59 +21,49 @@ services:
     volumes:
       - ./ollama_data:/root/.ollama
     environment:
-      # Allow up to 4 requests to process at the exact same time
       - OLLAMA_NUM_PARALLEL=4
-      # Restrict each model instance to 2-4 threads so they don't starve each other
       - OLLAMA_NUM_THREADS=4
-      # Prevent the model from being unloaded from memory between fast sequential calls
       - OLLAMA_KEEP_ALIVE=60m
     restart: unless-stopped
+    networks:
+      - clinical-net
 
   ingestor:
     build: .
     container_name: rag-ingestor
     volumes:
       - ./data:/app/data
-      - ./chroma_data:/app/chroma_data # Ensure ingestor can access Chroma's data directory
-    command: ["python", "ingest.py"] # Run your data ingestion script
+    command: ["python", "app/rag/ingest_csv.py"]
     environment:
       - CHROMA_HOST=chromadb
       - CHROMA_PORT=8000
-      - OLLAMA_URL=http://host.docker.internal:11434 # Connects to Ollama on your host machine
+      - OLLAMA_URL=http://ollama:11434
+      - PYTHONPATH=/app
     depends_on:
       chromadb:
-        condition: service_started # Only starts after chromadb container is up
+        condition: service_started
     networks:
       - clinical-net
-  rag-api:
+
+  app-server:
     build: .
-    container_name: rag-researcher
+    container_name: clinical-app-server
     ports:
-      - "8080:8000" # Your API will be at http://localhost:8080
+      - "8080:8000"   # http://localhost:8080 serves both API and index.html
+    env_file:
+      - .env
     environment:
       - CHROMA_HOST=chromadb
       - CHROMA_PORT=8000
-      - OLLAMA_URL=http://host.docker.internal:11434 # Connects to Ollama on your host machine
+      - OLLAMA_URL=http://ollama:11434
+      - PYTHONPATH=/app
     depends_on:
-      - ingestor
-    command: uvicorn main:app --host 0.0.0.0 --port 8000
-    networks:
-      - clinical-net
-  clinical-ui:
-    build: .
-    container_name: clinical-assistant-ui
-    ports:
-      - "8501:8501"
-    environment:
-      - CHROMA_HOST=chromadb
-      - CHROMA_PORT=8000
-      - OLLAMA_URL=Http://host.docker.internal:11434
-    depends_on:
-      - rag-api
-    command: streamlit run app_ui.py --server.port=8501 --server.address=0.0.0.0
+      ingestor:
+        condition: service_completed_successfully
+    command: ["uvicorn", "backend_api:app", "--app-dir", "updated_ui", "--host", "0.0.0.0", "--port", "8000"]
     networks:
       - clinical-net
 
 networks:
-    clinical-net:
-      driver: bridge
+  clinical-net:
+    driver: bridge

@@ -28,3 +28,4 @@ torchvision
 geopy                   # For calculating distances between locations
 spacy                   #Location extraction from user queries
 google-cloud-service-usage      # to get tokens and request usage data
+python-dotenv
